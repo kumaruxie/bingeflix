@@ -1,31 +1,23 @@
 // ==========================================================================
-// BingeFlix - Main Application Logic with Live Firebase & Watch History
+// BingeFlix - Main Application Logic (Direct Access & Multi-Server Streaming)
 // ==========================================================================
 
 import { 
-  initFirebase, 
-  isFirebaseReady, 
-  loginWithEmailOrUsername, 
-  logoutFirebase, 
-  syncWatchlistToCloud, 
-  recordMovieWatchToCloud,
-  fetchUserDataFromCloud,
-  clearWatchHistoryInCloud,
-  deleteMovieFromWatchHistoryInCloud,
-  updateUserCustomUsername,
-  onAuthStateListener,
-  createPaidSubscriber,
-  fetchAllSubscribers,
-  updatePaidSubscriber,
-  deletePaidSubscriber,
-  verifySubscriberLogin
-} from './firebase.js';
+  INITIAL_HERO_MOVIES, 
+  INITIAL_BOLLYWOOD, 
+  INITIAL_HOLLYWOOD, 
+  INITIAL_ANIME, 
+  INITIAL_CARTOONS, 
+  INITIAL_SERIES, 
+  INITIAL_SOUTH 
+} from './catalogData.js';
 
 import { initNativePlayer, switchNativeAudioTrack, destroyNativePlayer } from './nativePlayer.js';
 import { resolveDirectStream } from './streamResolver.js';
 
-const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || 'df1c541385e699bbed7ffd32934162da';
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) || 'df1c541385e699bbed7ffd32934162da';
+const TMDB_BASE_URL = 'https://api.tmdb.org/3';
+const TMDB_FALLBACK_URL = 'https://api.themoviedb.org/3';
 const IMG_BASE_URL = 'https://image.tmdb.org/t/p';
 
 // Anime Avatars Map (Real Anime Icons & Stylized Avatars)
@@ -49,20 +41,28 @@ export function getAvatarUrl(key) {
 
 let torrentStatusTimer = null;
 
-// App State
+// App State (Pre-populated with rich verified catalog for instant 0ms render)
 const state = {
-  trending: [],
-  popular: [],
+  trending: [...INITIAL_HERO_MOVIES],
+  popular: [...INITIAL_HOLLYWOOD],
   topRated: [],
   upcoming: [],
   action: [],
-  bollywood: [],
-  hollywood: [],
-  south: [],
-  series: [],
-  anime: [],
-  cartoons: [],
-  genres: {},
+  bollywood: [...INITIAL_BOLLYWOOD],
+  hollywood: [...INITIAL_HOLLYWOOD],
+  south: [...INITIAL_SOUTH],
+  series: [...INITIAL_SERIES],
+  anime: [...INITIAL_ANIME],
+  cartoons: [...INITIAL_CARTOONS],
+  genres: {
+    28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy",
+    80: "Crime", 99: "Documentary", 18: "Drama", 10751: "Family",
+    14: "Fantasy", 36: "History", 27: "Horror", 10402: "Music",
+    9648: "Mystery", 10749: "Romance", 878: "Sci-Fi", 10770: "TV Movie",
+    53: "Thriller", 10752: "War", 37: "Western", 10759: "Action & Adventure",
+    10762: "Kids", 10763: "News", 10764: "Reality", 10765: "Sci-Fi & Fantasy",
+    10766: "Soap", 10767: "Talk", 10768: "War & Politics"
+  },
   heroIndex: 0,
   heroTimer: null,
   watchlist: JSON.parse(localStorage.getItem('bingeflix_watchlist') || '[]'),
@@ -71,33 +71,35 @@ const state = {
   currentMovie: null,
   currentSeason: 1,
   currentEpisode: 1,
-  activeSourceType: 'movies',
+  activeSourceType: 'vidlink',
   currentStreamUrl: '',
-  activeLibraryTab: 'watchlist', // 'watchlist' | 'history'
-  subscribers: [],
-  adminAuthenticated: false,
+  activeLibraryTab: 'watchlist'
 };
 
 // ==========================================================================
 // API Fetch Helper
 // ==========================================================================
 async function fetchTMDB(endpoint, params = {}) {
-  const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
-  url.searchParams.append('api_key', TMDB_API_KEY);
-  url.searchParams.append('language', 'en-US');
-  
-  for (const [key, value] of Object.entries(params)) {
-    url.searchParams.append(key, value);
-  }
+  const queryParams = new URLSearchParams({
+    api_key: TMDB_API_KEY,
+    language: 'en-US',
+    ...params
+  });
 
+  // 1. Try Cloudflare-routed TMDB primary endpoint (bypasses ISP blocks in India)
   try {
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`TMDB error: ${res.status}`);
-    return await res.json();
+    const res = await fetch(`${TMDB_BASE_URL}${endpoint}?${queryParams.toString()}`);
+    if (res.ok) return await res.json();
   } catch (err) {
-    console.error(`Error fetching ${endpoint}:`, err);
-    return null;
+    // 2. Fallback to secondary endpoint
+    try {
+      const res2 = await fetch(`${TMDB_FALLBACK_URL}${endpoint}?${queryParams.toString()}`);
+      if (res2.ok) return await res2.json();
+    } catch (err2) {
+      console.warn(`TMDB endpoint ${endpoint} unavailable, using cached catalog`);
+    }
   }
+  return null;
 }
 
 // ==========================================================================
@@ -139,6 +141,18 @@ async function fetchRealIMDbRating(imdbId, title = '', year = '', isTv = false) 
 // ==========================================================================
 // App Initialization & URL Hash Routing
 // ==========================================================================
+function renderInitialCatalog() {
+  initHeroSpotlight();
+  renderMovieTrack('bollywood-row', state.bollywood);
+  renderMovieTrack('hollywood-row', state.hollywood);
+  renderMovieTrack('anime-row', state.anime);
+  renderMovieTrack('cartoons-row', state.cartoons);
+  renderMovieTrack('south-row', state.south);
+  renderMovieTrack('series-row', state.series);
+  renderMovieTrack('trending-row', state.trending);
+  renderMovieTrack('popular-row', state.popular);
+}
+
 function startApp() {
   setupNavbar();
   setupEventListeners();
@@ -147,38 +161,24 @@ function startApp() {
   updateUserUI();
   renderHistoryRow();
 
+  // Instantly render Hero Spotlight and verified movie rows (0ms delay)
+  renderInitialCatalog();
+
   // Immediately check initial hash route on load / refresh (F5 persistence)
   if (window.location.hash && window.location.hash !== '#' && window.location.hash !== '#home') {
     handleHashRouting();
   }
 
-  // 1. Immediately fetch TMDB movie catalog & genres without waiting for Firestore
+  // 1. Fetch live TMDB updates asynchronously in the background
   loadGenres();
   loadAllSections().then(() => {
-    // If not already routed to a watch view, re-evaluate hash (e.g. for scrolling to categories)
     if (window.location.hash && !window.location.hash.startsWith('#watch/')) {
       handleHashRouting();
     }
-  });
+  }).catch(e => console.warn('TMDB live catalog sync notice:', e));
 
   // Listen for browser Back/Forward navigation
   window.addEventListener('hashchange', handleHashRouting);
-
-  // 2. Non-blocking Background sync from Cloud Firestore if user is authenticated
-  if (state.currentUser && state.currentUser.uid && isFirebaseReady()) {
-    fetchUserDataFromCloud(state.currentUser.uid)
-      .then(cloudData => {
-        if (cloudData) {
-          if (Array.isArray(cloudData.watchlist)) state.watchlist = cloudData.watchlist;
-          if (Array.isArray(cloudData.watchHistory)) state.watchHistory = cloudData.watchHistory;
-          localStorage.setItem('bingeflix_watchlist', JSON.stringify(state.watchlist));
-          localStorage.setItem('bingeflix_watch_history', JSON.stringify(state.watchHistory));
-          updateWatchlistBadge();
-          renderHistoryRow();
-        }
-      })
-      .catch(e => console.warn('Background cloud sync notice:', e));
-  }
 }
 
 if (document.readyState === 'loading') {
@@ -657,9 +657,6 @@ function renderMovieTrack(containerId, movies) {
 function deleteMovieFromHistory(movieId) {
   state.watchHistory = state.watchHistory.filter(m => m.id !== movieId);
   localStorage.setItem('bingeflix_watch_history', JSON.stringify(state.watchHistory));
-  if (state.currentUser && state.currentUser.uid && isFirebaseReady()) {
-    deleteMovieFromWatchHistoryInCloud(state.currentUser.uid, movieId);
-  }
   updateWatchlistBadge();
   if (document.getElementById('watchlist-view').style.display === 'block') {
     renderLibraryView();
@@ -683,7 +680,7 @@ document.querySelectorAll('.scroll-arrow').forEach(btn => {
 });
 
 // ==========================================================================
-// Genre Filter Pills (All, Bollywood, Hindi Series & Genres)
+// Genre Filter Pills (All, Bollywood, Hollywood, Anime, Cartoons, Series)
 // ==========================================================================
 document.querySelectorAll('.genre-pill').forEach(pill => {
   pill.addEventListener('click', async (e) => {
@@ -694,24 +691,32 @@ document.querySelectorAll('.genre-pill').forEach(pill => {
     const genreId = pill.dataset.genreId;
 
     if (filter === 'all') {
-      loadAllSections();
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast('✨ Showing All Trending Categories');
     } else if (filter === 'bollywood') {
       const sec = document.getElementById('section-bollywood');
       if (sec) sec.scrollIntoView({ behavior: 'smooth' });
       showToast('🔥 Showing Trending Bollywood & Hindi Cinema');
-    } else if (filter === 'south') {
-      const sec = document.getElementById('section-south');
+    } else if (filter === 'hollywood') {
+      const sec = document.getElementById('section-hollywood');
       if (sec) sec.scrollIntoView({ behavior: 'smooth' });
-      showToast('⚔️ Showing South Indian Blockbusters');
-    } else if (filter === 'series') {
-      const sec = document.getElementById('section-series');
-      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
-      showToast('📺 Showing Popular Hindi Web Series');
+      showToast('🌟 Showing Hollywood Blockbusters');
     } else if (filter === 'anime') {
       const sec = document.getElementById('section-anime');
       if (sec) sec.scrollIntoView({ behavior: 'smooth' });
       showToast('⚡ Showing Top Trending Anime & Series');
+    } else if (filter === 'cartoons') {
+      const sec = document.getElementById('section-cartoons');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+      showToast('🎨 Showing Cartoons & Kids Favorites');
+    } else if (filter === 'series') {
+      const sec = document.getElementById('section-series');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+      showToast('📺 Showing Popular Hindi Web Series');
+    } else if (filter === 'south') {
+      const sec = document.getElementById('section-south');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+      showToast('⚔️ Showing South Indian Blockbusters');
     } else if (genreId) {
       const data = await fetchTMDB('/discover/movie', {
         with_genres: genreId,
@@ -837,6 +842,22 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       append_to_response: 'videos,credits,similar,external_ids,translations',
     });
     if (details) details.isTv = true;
+  }
+
+  if (!details) {
+    const allCached = [
+      ...state.trending,
+      ...state.bollywood,
+      ...state.hollywood,
+      ...state.anime,
+      ...state.cartoons,
+      ...state.series,
+      ...state.south,
+      ...state.popular,
+      ...state.watchlist,
+      ...state.watchHistory
+    ];
+    details = allCached.find(m => m && m.id === id);
   }
 
   if (!details) {
@@ -1445,55 +1466,12 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
 
   } else if (type === 'html5') {
     // ---------------------------------------------------------------
-    // 🎬 Server 5: HTML5 (Direct Stream Multi-Track)
+    // 👑 Server 5: MultiEmbed VIP (Multi-CDN High Speed Stream)
     // ---------------------------------------------------------------
-    badgeLabel = `🎬 Server 5 (HTML5) • ${isTv ? `S${season} : E${episode}` : 'Direct Stream'}`;
-    state.currentStreamUrl = '';
-    if (badge) badge.textContent = badgeLabel;
-
-    cinemaScreen.innerHTML = `
-      <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b0f19; color: #fff; padding: 2rem; text-align: center;">
-        <div class="spinner" style="width: 44px; height: 44px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 1.25rem;"></div>
-        <h3 style="font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;">Connecting to Server 5 (HTML5)...</h3>
-        <p style="color: #94a3b8; font-size: 0.88rem;">Fetching direct HTML5 stream buffer.</p>
-      </div>
-    `;
-
-    try {
-      const isHindi = state.activeAudioLang === 'hi';
-      const resolved = await resolveDirectStream(item, isTv, season, episode, isHindi);
-      if (resolved && resolved.url) {
-        state.currentStreamUrl = `${window.location.origin}${resolved.url}`;
-        const poster = item.backdrop_path ? `${IMG_BASE_URL}/original${item.backdrop_path}` : '';
-        initNativePlayer(cinemaScreen, {
-          url: resolved.url,
-          title: item.title || item.name,
-          poster: poster
-        });
-        showToast(resolved.hasHindi ? 'Server 5: Playing with Hindi Audio' : 'Server 5: HTML5 Stream Ready');
-      } else {
-        cinemaScreen.innerHTML = `
-          <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0b0f19; color: #fff; padding: 2rem; text-align: center;">
-            <p style="color: #94a3b8; margin-bottom: 1rem;">Direct HTML5 stream unavailable for this title. Switching to Server 1...</p>
-          </div>
-        `;
-        setTimeout(() => {
-          state.activeSourceType = 'vidlink';
-          document.querySelectorAll('.source-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.server === 'vidlink');
-          });
-          mountVideoPlayer(item, 'vidlink', season, episode);
-        }, 1200);
-      }
-    } catch (e) {
-      console.warn('Server 5 fallback to Server 1:', e);
-      state.activeSourceType = 'vidlink';
-      document.querySelectorAll('.source-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.server === 'vidlink');
-      });
-      mountVideoPlayer(item, 'vidlink', season, episode);
-    }
-    return;
+    badgeLabel = `👑 Server 5 (MultiEmbed) • ${isTv ? `S${season} : E${episode}` : 'Multi-CDN HD'}`;
+    streamUrl = isTv 
+      ? `https://multiembed.mov/?video_id=${item.id}&tmdb=1&s=${season}&e=${episode}`
+      : `https://multiembed.mov/?video_id=${item.id}&tmdb=1`;
 
   } else if (type === 'trailer') {
     // ---------------------------------------------------------------
@@ -1589,13 +1567,8 @@ function recordMovieToHistory(movie) {
   state.watchHistory.unshift(historyItem);
   if (state.watchHistory.length > 25) state.watchHistory = state.watchHistory.slice(0, 25);
 
+  // Save to localStorage
   localStorage.setItem('bingeflix_watch_history', JSON.stringify(state.watchHistory));
-
-  // Sync to Cloud Firestore if signed in
-  if (state.currentUser && state.currentUser.uid) {
-    recordMovieWatchToCloud(state.currentUser.uid, movie);
-  }
-
   renderHistoryRow();
   updateWatchlistBadge();
 }
@@ -1627,11 +1600,6 @@ function syncUserWatchlistToDB() {
   }
   state.currentUser.watchlist = state.watchlist;
   localStorage.setItem('bingeflix_user', JSON.stringify(state.currentUser));
-
-  // Sync to Firestore
-  if (state.currentUser.uid) {
-    syncWatchlistToCloud(state.currentUser.uid, state.watchlist);
-  }
 }
 
 function isMovieInWatchlist(id) {

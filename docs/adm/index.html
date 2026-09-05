@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Redirecting to BingeFlix Admin...</title>
+  <script>
+    // Redirect to parent with #adm hash to open admin panel instantly
+    const basePath = window.location.pathname.replace(/\/adm\/?$/, '');
+    window.location.replace(basePath + '/#adm');
+  </script>
+</head>
+<body style="background: #0f1016; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
+  <p>Redirecting to Admin Panel...</p>
+</body>
+</html>
