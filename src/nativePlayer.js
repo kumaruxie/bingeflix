@@ -19,7 +19,7 @@ export function initNativePlayer(container, streamConfig = {}) {
 
   const {
     url = '',
-    title = 'BingeFlix Stream',
+    title = 'AXON Stream',
     poster = '',
     audioTracks = [], // [{ label: 'Hindi', lang: 'hi', default: true }, ...]
     subtitles = [],   // [{ url: '...', name: 'English' }]
