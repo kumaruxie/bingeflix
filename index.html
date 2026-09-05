@@ -30,7 +30,7 @@
       <header class="navbar" id="navbar">
         <div class="nav-left">
           <a href="#" class="brand-logo" id="logo-btn">
-            <span style="display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; background: linear-gradient(135deg, #e50914, #b20710); border-radius: 9px; color: #fff; font-weight: 900; font-size: 1.25rem; box-shadow: 0 4px 14px rgba(229, 9, 20, 0.45); line-height: 1;">B</span>
+            <img src="./favicon.png" alt="BingeFlix Logo" class="brand-logo-icon" style="width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(229, 9, 20, 0.45));" />
             <span class="brand-name">binge<span class="text-accent">flix</span></span>
           </a>
 
@@ -79,7 +79,7 @@
         <div class="mobile-drawer" id="mobile-drawer">
           <div class="drawer-header">
             <div class="drawer-brand">
-              <img src="/favicon.png" alt="BingeFlix" class="drawer-logo" />
+              <img src="./favicon.png" alt="BingeFlix" class="drawer-logo" style="width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.4));" />
               <span>binge<span class="text-accent">flix</span></span>
             </div>
             <button class="drawer-close-btn" id="drawer-close">&times;</button>
@@ -474,6 +474,20 @@
         </div>
       </main>
 
+      <!-- App Footer with Official Logo -->
+      <footer class="app-footer" style="border-top: 1px solid var(--border-glass); padding: 2.5rem 1.5rem 2rem; background: rgba(7, 9, 14, 0.95); text-align: center; margin-top: 3rem;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.8rem;">
+          <img src="./favicon.png" alt="BingeFlix" style="width: 32px; height: 32px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.5));" />
+          <span style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: #fff;">binge<span class="text-accent">flix</span></span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.84rem; max-width: 480px; margin: 0 auto 1rem; line-height: 1.6;">
+          Stream movies, Bollywood, Hollywood blockbusters, anime, web series, and cartoons directly with multi-server playback.
+        </p>
+        <p style="color: var(--text-muted); font-size: 0.75rem;">
+          &copy; 2026 BingeFlix &bull; Made with &hearts; for movie lovers
+        </p>
+      </footer>
+
 
 
       <!-- Language, Dubbing & Audio Tracks Help Modal -->
@@ -556,20 +570,7 @@
         </div>
       </div>
 
-      <!-- Sleek Animated Sign Out Confirmation Modal -->
-      <div class="modal-backdrop" id="confirm-signout-modal" style="display: none;">
-        <div class="auth-card" style="max-width: 380px; text-align: center; padding: 2rem;">
-          <div style="font-size: 2.8rem; margin-bottom: 0.8rem;">🚪</div>
-          <h2>Sign Out of BingeFlix?</h2>
-          <p style="color: var(--text-secondary); margin: 0.8rem 0 1.6rem; font-size: 0.92rem; line-height: 1.5;">
-            Are you sure you want to sign out? Your watchlist & streaming history are saved safely in your account.
-          </p>
-          <div style="display: flex; gap: 0.8rem; justify-content: center;">
-            <button type="button" class="btn-primary-ghost" id="cancel-signout-btn" style="flex: 1; justify-content: center;">Cancel</button>
-            <button type="button" class="btn-cta" id="confirm-signout-btn" style="flex: 1; justify-content: center; background: #dc2626; border-color: #dc2626;">Yes, Sign Out</button>
-          </div>
-        </div>
-      </div>
+
 
       <!-- Toast Container -->
       <div class="toast-container" id="toast-container"></div>
