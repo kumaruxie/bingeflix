@@ -57,35 +57,49 @@ jobs:
       - name: Make Gradlew Executable
         run: chmod +x ./android/gradlew
 
-      - name: Build Android Debug APK
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkey -v -keystore android/app/release.keystore -alias bingeflix -keyalg RSA -keysize 2048 -validity 10000 -storepass bingeflix123 -keypass bingeflix123 -dname "CN=BingeFlix, OU=BingeFlix, O=BingeFlix, L=Mumbai, ST=Maharashtra, C=IN"
+
+      - name: Build Android Signed Release APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Rename APK
+      - name: Prepare Release APK Artifact
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk BingeFlix-debug.apk
+          cp android/app/build/outputs/apk/release/app-release.apk BingeFlix-release.apk
+          cp android/app/build/outputs/apk/release/app-release.apk BingeFlix.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BingeFlix-debug-apk
-          path: BingeFlix-debug.apk
+          name: BingeFlix-release-apk
+          path: BingeFlix.apk
 
-      - name: Create Release with APK
+      - name: Create Release with Signed APK
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main')
         with:
           tag_name: v1.0.0-apk
-          name: BingeFlix Android APK v1.0.0
+          name: BingeFlix Android APK v1.0.0 (Signed Release)
           body: |
-            ## 📱 BingeFlix Android APK Release
-            Install directly on any Android phone!
+            ## 📱 BingeFlix Android Official Release
+            ✅ **Signed Release APK** (No debug certificate issues)
             
-            - **App Name:** BingeFlix
-            - **Package:** com.bingeflix.app
-            - **Features:** 4K Streaming, Anime Sub/Dub, Cartoons & Series Archive, Multi-Track Audio, 4-Device Login Limits.
+            ### Installation Instructions:
+            1. Download `BingeFlix.apk` to your Android phone.
+            2. Tap on the downloaded file.
+            3. If prompted:
+               - Allow "Install from unknown sources" for your browser/file manager.
+               - If Google Play Protect shows a notification, tap **"More details"** and select **"Install anyway"**.
+            
+            - **Package:** `com.bingeflix.app`
+            - **Target:** Android 8.0 - Android 15 (API 24 - 34)
+            - **Features:** 4K Multi-server streaming, Anime Sub/Dub, Cartoons, 4-Device accounts.
           files: |
-            BingeFlix-debug.apk
+            BingeFlix.apk
+            BingeFlix-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
