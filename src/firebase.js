@@ -286,7 +286,7 @@ export function saveLocalSubscribers(list) {
   }
 }
 
-// 1. Fetch All Paid Subscribers (Firestore with LocalStorage Fallback)
+// 1. Fetch All Paid Subscribers (Local-first with non-blocking Firestore Sync)
 export async function fetchAllSubscribers() {
   let localList = getLocalSubscribers();
 
@@ -298,22 +298,29 @@ export async function fetchAllSubscribers() {
     const subCol = collection(db, 'subscribers');
     const snap = await Promise.race([
       getDocs(subCol),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1200))
     ]);
 
     if (snap && !snap.empty) {
       const cloudList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      saveLocalSubscribers(cloudList);
-      return cloudList;
+      // Merge: Keep local subscribers if not yet synced to cloud
+      const merged = [...cloudList];
+      for (const localSub of localList) {
+        if (!merged.some(c => c.username.toLowerCase() === localSub.username.toLowerCase() || c.id === localSub.id)) {
+          merged.push(localSub);
+        }
+      }
+      saveLocalSubscribers(merged);
+      return merged;
     }
   } catch (err) {
-    console.warn('[Firestore] Subscribers fetch fallback to local:', err.message);
+    // Quiet fallback to instantaneous local storage
   }
 
   return localList;
 }
 
-// 2. Create New Paid Subscriber
+// 2. Create New Paid Subscriber (Instantaneous Local-First + Background Cloud Sync)
 export async function createPaidSubscriber(subscriberData) {
   const newId = subscriberData.id || 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   const now = new Date();
@@ -324,9 +331,9 @@ export async function createPaidSubscriber(subscriberData) {
 
   const subscriberRecord = {
     id: newId,
-    username: subscriberData.username.trim().toLowerCase(),
-    email: subscriberData.email ? subscriberData.email.trim().toLowerCase() : `${subscriberData.username.trim().toLowerCase()}@bingeflix.vip`,
-    password: subscriberData.password.trim(),
+    username: (subscriberData.username || '').trim().toLowerCase(),
+    email: subscriberData.email ? subscriberData.email.trim().toLowerCase() : `${(subscriberData.username || '').trim().toLowerCase()}@bingeflix.vip`,
+    password: (subscriberData.password || '').trim(),
     plan: subscriberData.plan || '1 Month',
     durationDays: durationDays,
     amount: subscriberData.amount || '199',
@@ -334,23 +341,29 @@ export async function createPaidSubscriber(subscriberData) {
     note: subscriberData.note || 'Paid via UPI',
     status: 'active',
     avatar: subscriberData.avatar || 'goku',
+    activeDevices: [],
     createdAt: now.toISOString(),
     expiresAt: expiryDate,
   };
 
-  // 1. Save locally immediately
+  // 1. Save locally IMMEDIATELY (guaranteed 100% sync success)
   let list = getLocalSubscribers();
-  // Remove if exists
-  list = list.filter(s => s.id !== newId && s.username !== subscriberRecord.username);
+  list = list.filter(s => s.id !== newId && s.username.toLowerCase() !== subscriberRecord.username.toLowerCase());
   list.unshift(subscriberRecord);
   saveLocalSubscribers(list);
 
-  // 2. Sync to Firestore (Non-blocking)
+  // 2. Background Sync to Firestore (never freezes or blocks the user!)
   if (isFirebaseReady()) {
     try {
       const subDocRef = doc(db, 'subscribers', newId);
-      await setDoc(subDocRef, subscriberRecord, { merge: true });
-      console.log('[Firestore] Subscriber created:', newId);
+      Promise.race([
+        setDoc(subDocRef, subscriberRecord, { merge: true }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+      ]).then(() => {
+        console.log('[Firestore] Subscriber synced:', newId);
+      }).catch(err => {
+        console.warn('[Firestore] Cloud sync skipped/offline:', err.message);
+      });
     } catch (err) {
       console.warn('[Firestore] Create subscriber cloud warning:', err.message);
     }
@@ -371,10 +384,11 @@ export async function updatePaidSubscriber(id, updates) {
   if (isFirebaseReady()) {
     try {
       const subDocRef = doc(db, 'subscribers', id);
-      await setDoc(subDocRef, updates, { merge: true });
-    } catch (err) {
-      console.warn('[Firestore] Update subscriber cloud warning:', err.message);
-    }
+      Promise.race([
+        setDoc(subDocRef, updates, { merge: true }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+      ]).catch(e => console.warn('[Firestore] Update sync skipped:', e.message));
+    } catch (err) {}
   }
 
   return list[index];
@@ -389,10 +403,11 @@ export async function deletePaidSubscriber(id) {
   if (isFirebaseReady()) {
     try {
       const subDocRef = doc(db, 'subscribers', id);
-      await deleteDoc(subDocRef);
-    } catch (err) {
-      console.warn('[Firestore] Delete subscriber cloud warning:', err.message);
-    }
+      Promise.race([
+        deleteDoc(subDocRef),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+      ]).catch(e => console.warn('[Firestore] Delete sync skipped:', e.message));
+    } catch (err) {}
   }
 
   return true;

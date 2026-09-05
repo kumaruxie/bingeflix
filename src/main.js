@@ -2358,28 +2358,40 @@ function setupAdminPanel() {
   if (adminCreateForm) {
     adminCreateForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const createAlert = document.getElementById('admin-create-alert');
+      if (createAlert) {
+        createAlert.textContent = '';
+        createAlert.style.display = 'none';
+      }
+
       const usernameInput = document.getElementById('admin-new-username');
       const emailInput = document.getElementById('admin-new-email');
       const passwordInput = document.getElementById('admin-new-password');
-      const planOpt = adminPlanSelect.options[adminPlanSelect.selectedIndex];
-      const amount = adminAmountInput.value || '199';
-      const paymentMethod = document.getElementById('admin-new-payment-method').value;
-      const note = document.getElementById('admin-new-note').value;
+      const planOpt = (adminPlanSelect && adminPlanSelect.options) ? adminPlanSelect.options[adminPlanSelect.selectedIndex] : null;
+      const amount = (adminAmountInput && adminAmountInput.value) || '199';
+      const paymentEl = document.getElementById('admin-new-payment-method');
+      const noteEl = document.getElementById('admin-new-note');
+      const paymentMethod = paymentEl ? paymentEl.value : 'UPI';
+      const note = noteEl ? noteEl.value : '';
 
-      const username = (usernameInput.value || '').trim();
-      const password = (passwordInput.value || '').trim();
-      let email = (emailInput.value || '').trim();
+      const username = (usernameInput && usernameInput.value ? usernameInput.value : '').trim();
+      const password = (passwordInput && passwordInput.value ? passwordInput.value : '').trim();
+      let email = (emailInput && emailInput.value ? emailInput.value : '').trim();
       if (!email) {
         email = `${username.toLowerCase()}@bingeflix.vip`;
       }
 
       if (!username || !password) {
-        showToast('Please fill all required fields');
+        if (createAlert) {
+          createAlert.textContent = '❌ Please enter both Username and Password.';
+          createAlert.style.display = 'block';
+        }
+        showToast('Please fill Username and Password');
         return;
       }
 
-      const durationDays = parseInt(planOpt.dataset.days, 10) || 30;
-      const planName = planOpt.value;
+      const durationDays = (planOpt && planOpt.dataset && planOpt.dataset.days) ? (parseInt(planOpt.dataset.days, 10) || 30) : 30;
+      const planName = planOpt ? planOpt.value : '1 Month';
 
       try {
         const newSub = await createPaidSubscriber({
@@ -2395,9 +2407,9 @@ function setupAdminPanel() {
 
         adminCreateForm.reset();
         if (adminAmountInput) adminAmountInput.value = '199';
-        loadAndRenderAdminSubscribers();
+        await loadAndRenderAdminSubscribers();
 
-        // Prepare customer WhatsApp credentials
+        // Prepare customer credentials
         const formattedExpiry = new Date(newSub.expiresAt).toLocaleDateString('en-IN', {
           day: 'numeric',
           month: 'short',
@@ -2406,14 +2418,25 @@ function setupAdminPanel() {
 
         const credentialsMessage = `🎬 *BingeFlix VIP Premium Account Activated!*\n\n👤 *Username:* ${newSub.username}\n📧 *Email:* ${newSub.email}\n🔑 *Password:* ${newSub.password}\n📦 *Plan:* ${newSub.plan} (${durationDays} Days)\n⏳ *Expires On:* ${formattedExpiry}\n🌐 *Stream Link:* ${window.location.origin}\n\n🍿 Login with your username/email and enjoy 4K Movies, Hindi Dubs & Anime!`;
 
-        // Copy to clipboard
         if (navigator.clipboard) {
           navigator.clipboard.writeText(credentialsMessage).catch(() => {});
         }
 
-        showToast(`🎉 User @${newSub.username} created & credentials copied!`);
+        if (createAlert) {
+          createAlert.textContent = `✅ Success! User "@${newSub.username}" created. Password: "${newSub.password}". Ready to login!`;
+          createAlert.style.display = 'block';
+          createAlert.style.borderColor = '#10b981';
+          createAlert.style.color = '#10b981';
+          createAlert.style.background = 'rgba(16, 185, 129, 0.1)';
+        }
+
+        showToast(`🎉 User @${newSub.username} created successfully!`);
       } catch (err) {
         console.error('Create subscriber error:', err);
+        if (createAlert) {
+          createAlert.textContent = `❌ Error: ${err.message || 'Could not create subscriber'}`;
+          createAlert.style.display = 'block';
+        }
         showToast('Error creating subscriber');
       }
     });

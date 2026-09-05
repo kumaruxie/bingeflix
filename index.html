@@ -709,15 +709,15 @@
                   <span>➕ Create Paid Customer Account</span>
                 </div>
                 <div id="admin-create-alert" class="auth-error-box" style="display: none;"></div>
-                <form id="admin-create-user-form" class="admin-form">
+                <form id="admin-create-user-form" class="admin-form" novalidate>
                   <div class="form-group">
-                    <label for="admin-new-username">Username / Customer Name *</label>
-                    <input type="text" id="admin-new-username" placeholder="e.g. rohit_kumar" required minlength="3" />
+                    <label for="admin-new-username">Username or User ID *</label>
+                    <input type="text" id="admin-new-username" placeholder="e.g. rohit or rohit@gmail.com" required autocomplete="off" />
                   </div>
 
                   <div class="form-group">
                     <label for="admin-new-email">Email (Optional)</label>
-                    <input type="email" id="admin-new-email" placeholder="e.g. rohit@gmail.com (or auto-generated)" />
+                    <input type="text" id="admin-new-email" placeholder="e.g. rohit@gmail.com (leave blank for auto)" autocomplete="off" />
                   </div>
 
                   <div class="form-group">
@@ -725,7 +725,7 @@
                       <label for="admin-new-password">Password *</label>
                       <button type="button" class="text-btn" id="btn-generate-pass">🎲 Auto Generate</button>
                     </div>
-                    <input type="text" id="admin-new-password" placeholder="e.g. Binge@9981" required minlength="4" />
+                    <input type="text" id="admin-new-password" placeholder="e.g. 12345 or Binge@9981" required autocomplete="off" />
                   </div>
 
                   <div class="form-row">
