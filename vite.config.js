@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { torrentBridgePlugin } from './torrentBridge.js';
 
 export default defineConfig({
+  base: './',
   plugins: [torrentBridgePlugin()],
   server: {
     port: 3000,
