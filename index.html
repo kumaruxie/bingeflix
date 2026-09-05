@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BingeFlix - Unlimited Movies & Shows</title>
+    <meta name="description" content="Stream trailers, discover trending cinema, and build your personalized watchlist on BingeFlix." />
+    
+    <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <!-- App Logo Favicon -->
+    <!-- App Favicon: Iconic Red 'b' Only without text -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/style.css" />
+
+    <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Ambient Background Glows -->
+      <div class="ambient-glow glow-1"></div>
+      <div class="ambient-glow glow-2"></div>
+
+      <!-- Navigation Bar -->
+      <header class="navbar" id="navbar">
+        <div class="nav-left">
+          <a href="#" class="brand-logo" id="logo-btn">
+            <img src="/favicon.png" alt="BingeFlix Logo" class="brand-logo-icon" />
+            <span class="brand-name">binge<span class="text-accent">flix</span></span>
+          </a>
+
+          <nav class="nav-links desktop-only">
+            <button class="nav-item active" data-category="home" id="nav-home">Home</button>
+            <button class="nav-item" data-category="bollywood" id="nav-bollywood">🔥 Bollywood</button>
+            <button class="nav-item" data-category="hollywood" id="nav-hollywood">🌟 Hollywood</button>
+            <button class="nav-item" data-category="anime" id="nav-anime">🍥 Anime</button>
+            <button class="nav-item" data-category="cartoons" id="nav-cartoons">🎨 Cartoons</button>
+            <button class="nav-item" data-category="series" id="nav-series">📺 Web Series</button>
+            <button class="nav-item" data-category="watchlist" id="nav-watchlist">
+              My Watchlist <span class="badge-count" id="watchlist-count">0</span>
+            </button>
+          </nav>
+        </div>
+
+        <div class="nav-right">
+          <!-- Real-Time Search Box -->
+          <div class="search-box-wrapper">
+            <div class="search-input-container">
+              <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="search-input" placeholder="Search movies, series, anime..." autocomplete="off" />
+              <button class="search-clear-btn" id="search-clear" style="display: none;">&times;</button>
+            </div>
+            <!-- Search Results Dropdown -->
+            <div class="search-dropdown" id="search-dropdown" style="display: none;"></div>
+          </div>
+
+          <!-- User Account Container with Dropdown -->
+          <div class="user-menu-container">
+            <button class="btn-primary-ghost" id="auth-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <span id="user-display-name">Sign In</span>
+              <span class="user-chevron" id="user-chevron" style="display: none; font-size: 0.65rem; margin-left: 2px;">▼</span>
+            </button>
+
+            <!-- Sleek User Dropdown Menu -->
+            <div class="user-menu-dropdown" id="user-menu-dropdown" style="display: none;">
+              <div class="user-dropdown-header">
+                <div class="user-avatar-circle" id="user-dropdown-avatar">U</div>
+                <div class="user-info-text">
+                  <div class="user-info-name" id="user-dropdown-name">Kumar Raunak</div>
+                  <div class="user-info-handle" id="user-dropdown-handle">@kumar_raunak</div>
+                  <div class="user-info-email" id="user-dropdown-email">user@gmail.com</div>
+                  <div class="user-plan-badge" id="user-dropdown-plan" style="display: none;">VIP Member</div>
+                </div>
+              </div>
+              <div class="dropdown-divider"></div>
+              <div class="user-dropdown-items">
+                <button class="dropdown-item" id="menu-watchlist">
+                  <span class="dropdown-item-icon">🔖</span>
+                  <span class="dropdown-item-label">My Watchlist</span>
+                  <span class="dropdown-badge" id="dropdown-watchlist-count">0</span>
+                </button>
+                <button class="dropdown-item" id="menu-history">
+                  <span class="dropdown-item-icon">🕒</span>
+                  <span class="dropdown-item-label">Watch History</span>
+                  <span class="dropdown-badge" id="dropdown-history-count">0</span>
+                </button>
+                <button class="dropdown-item" id="menu-change-username">
+                  <span class="dropdown-item-icon">🍥</span>
+                  <span class="dropdown-item-label">Anime Avatar & Profile</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item item-admin" id="menu-admin-panel">
+                  <span class="dropdown-item-icon">🛡️</span>
+                  <span class="dropdown-item-label">Admin Panel (Create Users)</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item item-danger" id="menu-signout">
+                  <span class="dropdown-item-icon">🚪</span>
+                  <span class="dropdown-item-label">Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3-Bars Hamburger Button for Mobile -->
+          <button class="hamburger-btn mobile-only" id="hamburger-btn" aria-label="Menu">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Mobile Navigation Drawer -->
+      <div class="mobile-drawer-backdrop" id="mobile-drawer-backdrop" style="display: none;">
+        <div class="mobile-drawer" id="mobile-drawer">
+          <div class="drawer-header">
+            <div class="drawer-brand">
+              <img src="/favicon.png" alt="BingeFlix" class="drawer-logo" />
+              <span>binge<span class="text-accent">flix</span></span>
+            </div>
+            <button class="drawer-close-btn" id="drawer-close">&times;</button>
+          </div>
+          <div class="drawer-links">
+            <button class="drawer-item active" data-category="home">🏠 Home</button>
+            <button class="drawer-item" data-category="bollywood">🔥 Bollywood & Hindi</button>
+            <button class="drawer-item" data-category="hollywood">🌟 Hollywood Blockbusters</button>
+            <button class="drawer-item" data-category="anime">🍥 Anime Series & Films</button>
+            <button class="drawer-item" data-category="cartoons">🎨 Cartoons & Kids</button>
+            <button class="drawer-item" data-category="series">📺 Hindi Web Series</button>
+            <button class="drawer-item" data-category="watchlist">
+              🔖 My Watchlist <span class="badge-count" id="drawer-watchlist-count">0</span>
+            </button>
+            <button class="drawer-item" id="drawer-admin-btn">
+              🛡️ Admin Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Application Views -->
+      <main id="main-content">
+        
+        <!-- ================================================================
+             VIEW 1: BROWSE / HOME CATALOG VIEW
+             ================================================================ -->
+        <div id="browse-view">
+          <!-- Hero Banner Section (Scrollable & Responsive) -->
+          <section class="hero-spotlight" id="hero-spotlight">
+            <div class="hero-backdrop" id="hero-backdrop"></div>
+            <div class="hero-gradient-overlay"></div>
+            
+            <div class="hero-content">
+              <div class="hero-badges">
+                <span class="badge-featured">🔥 SPOTLIGHT OF THE DAY</span>
+                <span class="badge-quality">4K ULTRA HD</span>
+                <span class="badge-rating" id="hero-rating">★ 8.5</span>
+              </div>
+              <h1 class="hero-title" id="hero-title">Loading BingeFlix...</h1>
+              <p class="hero-overview" id="hero-overview">Discover the latest blockbusters and timeless cinema.</p>
+              
+              <div class="hero-meta" id="hero-meta">
+                <span id="hero-year">2026</span>
+                <span class="meta-dot">•</span>
+                <span id="hero-genre">Action, Sci-Fi</span>
+              </div>
+              
+              <div class="hero-actions">
+                <button class="btn-cta btn-play" id="hero-play-btn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  Play Now
+                </button>
+                <button class="btn-cta btn-watchlist" id="hero-watchlist-btn">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  + Watchlist
+                </button>
+              </div>
+            </div>
+
+            <!-- Slide Arrows -->
+            <div class="hero-controls">
+              <button class="hero-arrow-btn" id="hero-prev" aria-label="Previous">‹</button>
+              <div class="hero-indicators" id="hero-indicators"></div>
+              <button class="hero-arrow-btn" id="hero-next" aria-label="Next">›</button>
+            </div>
+          </section>
+
+          <!-- Category & Language Filter Pills -->
+          <section class="genres-pill-bar">
+            <div class="genres-scroll" id="genres-container">
+              <button class="genre-pill active" data-filter="all">✨ All</button>
+              <button class="genre-pill" data-filter="bollywood">🔥 Bollywood & Hindi</button>
+              <button class="genre-pill" data-filter="hollywood">🌟 Hollywood</button>
+              <button class="genre-pill" data-filter="anime">🍥 Anime Series</button>
+              <button class="genre-pill" data-filter="cartoons">🎨 Cartoons & Kids</button>
+              <button class="genre-pill" data-filter="series">📺 Hindi Web Series</button>
+              <button class="genre-pill" data-filter="south">⚔️ South Cinema</button>
+              <button class="genre-pill" data-genre-id="28">Action</button>
+              <button class="genre-pill" data-genre-id="35">Comedy</button>
+              <button class="genre-pill" data-genre-id="878">Sci-Fi</button>
+              <button class="genre-pill" data-genre-id="53">Thriller</button>
+              <button class="genre-pill" data-genre-id="27">Horror</button>
+            </div>
+          </section>
+
+          <!-- Movie Rows Section -->
+          <div id="movie-rows-container">
+            <!-- Bollywood & Hindi Cinema Row -->
+            <section class="movie-row-section" id="section-bollywood">
+              <div class="row-header">
+                <h2 class="row-title">🔥 Trending Bollywood & Hindi Cinema</h2>
+                <span class="row-subtitle">Latest blockbuster Hindi movies streaming in HD</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="bollywood-row">‹</button>
+                <div class="movie-cards-track" id="bollywood-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="bollywood-row">›</button>
+              </div>
+            </section>
+
+            <!-- Hollywood Blockbusters Row -->
+            <section class="movie-row-section" id="section-hollywood">
+              <div class="row-header">
+                <h2 class="row-title">🌟 Hollywood Blockbusters & Global Hits</h2>
+                <span class="row-subtitle">Worldwide top rated and trending international films</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="hollywood-row">‹</button>
+                <div class="movie-cards-track" id="hollywood-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="hollywood-row">›</button>
+              </div>
+            </section>
+
+            <!-- Trending Anime & Series Row -->
+            <section class="movie-row-section" id="section-anime">
+              <div class="row-header">
+                <h2 class="row-title">🍥 Top Trending Anime & Series</h2>
+                <span class="row-subtitle">Japanese anime, seasons, episodes, English Sub & Dub</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="anime-row">‹</button>
+                <div class="movie-cards-track" id="anime-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="anime-row">›</button>
+              </div>
+            </section>
+
+            <!-- Cartoons & Kids Universe Row -->
+            <section class="movie-row-section" id="section-cartoons">
+              <div class="row-header">
+                <h2 class="row-title">🎨 Cartoons & Kids Classics</h2>
+                <span class="row-subtitle">Doraemon, Shin-chan, Ben 10, classic animation & cartoons</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="cartoons-row">‹</button>
+                <div class="movie-cards-track" id="cartoons-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="cartoons-row">›</button>
+              </div>
+            </section>
+
+            <!-- Hindi Web Series & Shows Row -->
+            <section class="movie-row-section" id="section-series">
+              <div class="row-header">
+                <h2 class="row-title">📺 Popular Hindi Web Series & Shows</h2>
+                <span class="row-subtitle">Binge-worthy Indian web series, drama & seasons</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="series-row">‹</button>
+                <div class="movie-cards-track" id="series-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="series-row">›</button>
+              </div>
+            </section>
+
+            <!-- South Indian Blockbusters -->
+            <section class="movie-row-section" id="section-south">
+              <div class="row-header">
+                <h2 class="row-title">⚔️ South Indian Blockbusters</h2>
+                <span class="row-subtitle">Mass action hits from Telugu, Tamil & Kannada cinema</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="south-row">‹</button>
+                <div class="movie-cards-track" id="south-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="south-row">›</button>
+              </div>
+            </section>
+
+            <!-- Trending Today Row -->
+            <section class="movie-row-section" id="section-trending">
+              <div class="row-header">
+                <h2 class="row-title">⚡ Global Trending Today</h2>
+                <span class="row-subtitle">Most popular films and series worldwide</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="trending-row">‹</button>
+                <div class="movie-cards-track" id="trending-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="trending-row">›</button>
+              </div>
+            </section>
+
+            <!-- Popular Blockbusters Row -->
+            <section class="movie-row-section" id="section-popular">
+              <div class="row-header">
+                <h2 class="row-title">🍿 Popular Blockbusters</h2>
+                <span class="row-subtitle">Crowd favorites and trending hits</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="popular-row">‹</button>
+                <div class="movie-cards-track" id="popular-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="popular-row">›</button>
+              </div>
+            </section>
+
+            <!-- Top Rated Classics Row -->
+            <section class="movie-row-section" id="section-top-rated">
+              <div class="row-header">
+                <h2 class="row-title">⭐ Top Rated Masterpieces</h2>
+                <span class="row-subtitle">Critically acclaimed cinema</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="top-rated-row">‹</button>
+                <div class="movie-cards-track" id="top-rated-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="top-rated-row">›</button>
+              </div>
+            </section>
+
+            <!-- Action Movies Row -->
+            <section class="movie-row-section" id="section-action">
+              <div class="row-header">
+                <h2 class="row-title">💥 High Octane Action</h2>
+                <span class="row-subtitle">Explosive stunts and adrenaline surges</span>
+              </div>
+              <div class="row-scroll-container">
+                <button class="scroll-arrow scroll-left" data-target="action-row">‹</button>
+                <div class="movie-cards-track" id="action-row"></div>
+                <button class="scroll-arrow scroll-right" data-target="action-row">›</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 2: DEDICATED PLAYER & MOVIE WATCH VIEW
+             ================================================================ -->
+        <div id="player-view" class="player-view" style="display: none;">
+          <!-- Top Return Bar -->
+          <div class="player-top-nav">
+            <button class="btn-back" id="back-to-browse">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              Back to Browse
+            </button>
+            <div class="player-movie-badge" id="player-view-badge">Playing Trailer</div>
+          </div>
+
+          <!-- Cinematic Video Player Screen -->
+          <div class="cinema-player-wrapper">
+            <div class="cinema-screen" id="cinema-screen">
+              <!-- Video / Trailer iFrame will be dynamically mounted here -->
+            </div>
+            
+            <!-- Stream Server Switcher -->
+            <div class="player-source-bar">
+              <div class="source-buttons" id="source-buttons-container">
+                <button class="source-btn active" data-server="vidlink" id="btn-src-vidlink" title="Server 1 - VidLink">
+                  <span class="src-icon">⚡</span> Server 1 (VidLink)
+                </button>
+                <button class="source-btn" data-server="vidsrc" id="btn-src-vidsrc" title="Server 2 - VidSrc PM">
+                  <span class="src-icon">👑</span> Server 2 (VidSrc PM)
+                </button>
+                <button class="source-btn" data-server="smashy" id="btn-src-smashy" title="Server 3 - SmashyStream">
+                  <span class="src-icon">🍥</span> Server 3 (SmashyStream)
+                </button>
+                <button class="source-btn" data-server="2embed" id="btn-src-2embed" title="Server 4 - 2Embed">
+                  <span class="src-icon">📺</span> Server 4 (2Embed)
+                </button>
+                <button class="source-btn" data-server="html5" id="btn-src-html5" title="Server 5 - HTML5 Direct Stream">
+                  <span class="src-icon">🎬</span> Server 5 (HTML5)
+                </button>
+                <button class="source-btn" data-server="trailer" id="btn-src-trailer" title="Official HD Trailer">
+                  <span class="src-icon">🎞️</span> Trailer
+                </button>
+              </div>
+              <div class="source-right">
+                <button class="btn-cta btn-watchlist small" id="player-watchlist-btn">
+                  + Add to Watchlist
+                </button>
+                <button class="source-btn popout-btn" id="player-external-btn" title="Open Stream in Full Tab">
+                  ↗ Pop-out
+                </button>
+              </div>
+            </div>
+
+            <!-- Dynamic Audio & Language Status Bar (Fetched from TMDB API) -->
+            <div class="player-audio-control-bar">
+              <div class="audio-control-left">
+                <span class="audio-bar-title">Audio Track:</span>
+                <div class="audio-lang-pills" id="audio-lang-pills"></div>
+              </div>
+              <div class="audio-control-right" id="audio-server-hint">
+                <span style="font-size: 0.82rem; color: #94a3b8;">
+                  For Hindi audio, click <strong style="color: #fff;">🇮🇳 Hindi Dubbed</strong> or <strong style="color: #f59e0b;">🟧 Open in VLC</strong>
+                </span>
+              </div>
+            </div>
+
+            <!-- Series & Anime Season Breakdown & Episode Controls -->
+            <div class="series-controls-container" id="player-series-controls" style="display: none;">
+              <!-- Season Breakdown Header -->
+              <div class="series-controls-top">
+                <div class="season-selector-box">
+                  <span class="season-icon">📺</span>
+                  <label for="season-select" class="season-label">Season:</label>
+                  <select id="season-select" class="season-dropdown"></select>
+                </div>
+                
+                <div class="season-info-box" id="season-info-box">
+                  <span class="season-meta-badge" id="season-meta-badge">10 Episodes • 2024</span>
+                </div>
+
+                <div class="episodes-orientation-actions">
+                  <!-- View Mode Switcher: List vs Grid -->
+                  <div class="view-mode-toggle">
+                    <button type="button" class="view-mode-btn active" id="btn-ep-list-view" title="Detailed List View">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                      List
+                    </button>
+                    <button type="button" class="view-mode-btn" id="btn-ep-grid-view" title="Card Grid View">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                      Grid
+                    </button>
+                  </div>
+
+                  <div class="now-playing-episode-badge" id="now-playing-episode-badge">S1 : E1</div>
+                </div>
+              </div>
+
+              <!-- Season Breakdown Synopsis / Storyline -->
+              <div class="season-breakdown-desc" id="season-breakdown-desc" style="display: none;"></div>
+
+              <!-- Episode Range Filter Tabs (for anime & series with 15+ episodes) -->
+              <div class="episode-range-tabs" id="episode-range-tabs" style="display: none;"></div>
+
+              <!-- Episodes Container with List/Grid Orientation -->
+              <div class="episodes-container" id="episodes-container">
+                <div class="episodes-cards-track mode-list" id="episodes-track">
+                  <!-- Episodes loaded dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Movie Details & Synopsis Section Below Player -->
+          <div class="player-details-container">
+            <div class="player-meta-row">
+              <div class="player-meta-left">
+                <h1 class="player-movie-title" id="player-movie-title">Movie Title</h1>
+                <p class="player-tagline" id="player-tagline">"Tagline goes here"</p>
+                <div class="player-badges" id="player-badges-container">
+                  <span class="badge-rating badge-imdb-tag" id="player-rating"><span class="imdb-logo-badge">IMDb</span> ★ 8.4</span>
+                  <span class="badge-quality" id="player-year">2026</span>
+                  <span class="badge-runtime" id="player-runtime">2h 15m</span>
+                  <span class="badge-language" id="player-lang">EN</span>
+                  <span class="badge-featured" id="player-status">Released</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Genres -->
+            <div class="player-genres" id="player-genres"></div>
+
+            <!-- Overview Plot -->
+            <div class="player-overview-box">
+              <h3 class="section-label">Storyline / Overview</h3>
+              <p class="player-overview-text" id="player-overview">Movie overview synopsis...</p>
+            </div>
+
+            <!-- Recommended Movies (More Like This) Below Player -->
+            <div class="player-similar-section">
+              <div class="row-header">
+                <h2 class="row-title">🍿 More Like This</h2>
+                <span class="row-subtitle">Related titles and continuations</span>
+              </div>
+              <div class="similar-grid" id="player-similar-grid"></div>
+            </div>
+
+            <!-- Top Rated in this Genre Section Below Player -->
+            <div class="player-similar-section" id="player-genre-top-section" style="margin-top: 2.5rem;">
+              <div class="row-header">
+                <h2 class="row-title" id="player-genre-top-title">⭐ Top Rated in this Genre</h2>
+                <span class="row-subtitle" id="player-genre-top-subtitle">Critically acclaimed cinema in the same genre</span>
+              </div>
+              <div class="similar-grid" id="player-genre-top-grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             VIEW 3: DEDICATED WATCHLIST VIEW
+             ================================================================ -->
+        <div id="watchlist-view" class="watchlist-section" style="display: none;">
+          <div class="row-header">
+            <div class="library-tabs-row">
+              <button class="lib-tab active" id="tab-watchlist">🔖 My Watchlist (<span id="lib-watchlist-count">0</span>)</button>
+              <button class="lib-tab" id="tab-history">🕒 Watch History (<span id="lib-history-count">0</span>)</button>
+            </div>
+            <span class="row-subtitle" id="watchlist-subtitle">All your saved movies and recent streaming history</span>
+          </div>
+          <div class="watchlist-grid" id="watchlist-grid"></div>
+        </div>
+      </main>
+
+      <!-- Mandatory Auth Gate (Username & Password) -->
+      <div class="modal-backdrop" id="auth-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 420px;">
+          <button class="modal-close-btn" id="auth-close" style="display: none;">&times;</button>
+          
+          <div class="auth-header">
+            <img src="/favicon.png" alt="BingeFlix" style="height: 48px; margin-bottom: 0.8rem; object-fit: contain;" />
+            <h2 id="auth-heading">Sign In to BingeFlix</h2>
+            <p id="auth-subtext">Enter your Username / Email and Password to continue</p>
+          </div>
+
+          <div id="auth-error" class="auth-error-box" style="display: none;"></div>
+
+          <form id="auth-form" class="auth-form">
+            <div class="form-group">
+              <label for="auth-email" id="auth-email-label">Username or Email *</label>
+              <input type="text" id="auth-email" placeholder="Enter your username or email" required autocomplete="username" />
+            </div>
+            <div class="form-group">
+              <label for="auth-password">Password *</label>
+              <input type="password" id="auth-password" placeholder="••••••••" required autocomplete="current-password" />
+            </div>
+            <button type="submit" class="btn-cta btn-submit" id="auth-submit-btn">Sign In</button>
+          </form>
+
+          <p class="auth-switch-text" style="color: var(--text-muted); font-size: 0.82rem; margin-top: 1.2rem; text-align: center;">
+            Don't have an account? Contact Administrator to get access.
+          </p>
+        </div>
+      </div>
+
+      <!-- Custom Profile & Avatar Picker Modal -->
+      <div class="modal-backdrop" id="username-modal" style="display: none;">
+        <div class="auth-card">
+          <button class="modal-close-btn" id="username-modal-close">&times;</button>
+          <div class="auth-header">
+            <img src="/favicon.png" alt="BingeFlix" style="height: 44px; margin-bottom: 0.8rem; object-fit: contain;" />
+            <h2 id="username-modal-heading">Customize Profile & Avatar</h2>
+            <p>Pick your cinematic avatar & unique @handle for BingeFlix</p>
+          </div>
+          <div id="username-modal-error" class="auth-error-box" style="display: none;"></div>
+          <form id="username-modal-form" class="auth-form">
+            <!-- Avatar Picker with Genuine Anime Icons -->
+            <div class="form-group">
+              <label>Select Anime Avatar</label>
+              <div class="avatar-grid" id="avatar-picker-grid">
+                <button type="button" class="avatar-pick-btn active" data-avatar="goku" title="Son Goku (Dragon Ball)">
+                  <img src="/avatars/goku.jpg" alt="Goku" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Goku</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="naruto" title="Naruto Uzumaki">
+                  <img src="/avatars/naruto.jpg" alt="Naruto" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Naruto</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="luffy" title="Monkey D. Luffy">
+                  <img src="/avatars/luffy.jpg" alt="Luffy" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Luffy</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="doraemon" title="Doraemon">
+                  <img src="/avatars/doraemon.png" alt="Doraemon" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Doraemon</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="zoro" title="Roronoa Zoro">
+                  <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=ZoroOnePiece&backgroundColor=2e7d32" alt="Zoro" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Zoro</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="gojo" title="Gojo Satoru">
+                  <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=GojoSatoru&backgroundColor=0288d1" alt="Gojo" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Gojo</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="tanjiro" title="Tanjiro Kamado">
+                  <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=TanjiroDemonSlayer&backgroundColor=00695c" alt="Tanjiro" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Tanjiro</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="sukuna" title="Ryomen Sukuna">
+                  <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=RyomenSukuna&backgroundColor=880e4f" alt="Sukuna" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Sukuna</span>
+                </button>
+                <button type="button" class="avatar-pick-btn" data-avatar="shinchan" title="Shin-chan">
+                  <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=ShinchanCrayon&backgroundColor=f44336" alt="Shinchan" class="avatar-img-choice" />
+                  <span class="avatar-name-label">Shinchan</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="custom-username-input">Your @Username</label>
+              <div class="username-input-group">
+                <span class="username-at">@</span>
+                <input type="text" id="custom-username-input" placeholder="kumar_raunak" required minlength="3" maxlength="20" autocomplete="off" />
+              </div>
+            </div>
+            <button type="submit" class="btn-cta btn-submit">Save Profile</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Admin Passcode Gate Modal -->
+      <div class="modal-backdrop" id="admin-login-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 400px;">
+          <button class="modal-close-btn" id="admin-login-close">&times;</button>
+          <div class="auth-header">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🛡️</div>
+            <h2>Admin Authorization</h2>
+            <p>Enter Master PIN to access subscriber creation & payment dashboard</p>
+          </div>
+          <div id="admin-login-error" class="auth-error-box" style="display: none;"></div>
+          <form id="admin-login-form" class="auth-form">
+            <div class="form-group">
+              <label for="admin-pin-input">Master Passcode (/adm)</label>
+              <input type="password" id="admin-pin-input" placeholder="Enter PIN (12345)" required autocomplete="current-password" />
+              <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.3rem; display: block;">Master Passcode: <strong>12345</strong></small>
+            </div>
+            <button type="submit" class="btn-cta btn-submit" id="admin-login-submit">Unlock Admin Panel</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Comprehensive Admin Subscription Dashboard Modal -->
+      <div class="modal-backdrop" id="admin-dashboard-modal" style="display: none;">
+        <div class="admin-dashboard-card">
+          <!-- Dashboard Top Header -->
+          <div class="admin-dash-header">
+            <div class="admin-dash-title-group">
+              <div class="admin-badge-icon">🛡️</div>
+              <div>
+                <h2>BingeFlix VIP Admin Panel</h2>
+                <p>Create paid users, generate credentials & manage subscriptions</p>
+              </div>
+            </div>
+            <div class="admin-dash-actions">
+              <button class="btn-primary-ghost small" id="admin-refresh-btn">🔄 Refresh</button>
+              <button class="modal-close-btn relative" id="admin-dashboard-close">&times;</button>
+            </div>
+          </div>
+
+          <!-- Revenue & Subscriber Stats Counters -->
+          <div class="admin-stats-grid">
+            <div class="admin-stat-card">
+              <span class="stat-icon">👥</span>
+              <div class="stat-info">
+                <span class="stat-label">Total Subscribers</span>
+                <span class="stat-value" id="stat-total-subs">0</span>
+              </div>
+            </div>
+            <div class="admin-stat-card stat-active">
+              <span class="stat-icon">⚡</span>
+              <div class="stat-info">
+                <span class="stat-label">Active Paid Users</span>
+                <span class="stat-value" id="stat-active-subs">0</span>
+              </div>
+            </div>
+            <div class="admin-stat-card stat-revenue">
+              <span class="stat-icon">💰</span>
+              <div class="stat-info">
+                <span class="stat-label">Total Revenue</span>
+                <span class="stat-value" id="stat-total-revenue">₹0</span>
+              </div>
+            </div>
+            <div class="admin-stat-card stat-warning">
+              <span class="stat-icon">⏳</span>
+              <div class="stat-info">
+                <span class="stat-label">Expiring in &lt; 7 Days</span>
+                <span class="stat-value" id="stat-expiring-subs">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main 2-Column Layout: Create User on Left, List on Right -->
+          <div class="admin-dash-body">
+            <!-- Left: Create User Form -->
+            <div class="admin-col-create">
+              <div class="admin-section-box">
+                <div class="admin-section-title">
+                  <span>➕ Create Paid Customer Account</span>
+                </div>
+                <div id="admin-create-alert" class="auth-error-box" style="display: none;"></div>
+                <form id="admin-create-user-form" class="admin-form">
+                  <div class="form-group">
+                    <label for="admin-new-username">Username / Customer Name *</label>
+                    <input type="text" id="admin-new-username" placeholder="e.g. rohit_kumar" required minlength="3" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="admin-new-email">Email (Optional)</label>
+                    <input type="email" id="admin-new-email" placeholder="e.g. rohit@gmail.com (or auto-generated)" />
+                  </div>
+
+                  <div class="form-group">
+                    <div class="label-with-action">
+                      <label for="admin-new-password">Password *</label>
+                      <button type="button" class="text-btn" id="btn-generate-pass">🎲 Auto Generate</button>
+                    </div>
+                    <input type="text" id="admin-new-password" placeholder="e.g. Binge@9981" required minlength="4" />
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label for="admin-new-plan">Plan Duration *</label>
+                      <select id="admin-new-plan" class="admin-select">
+                        <option value="1 Month" data-days="30" data-price="199">1 Month (30 Days) - ₹199</option>
+                        <option value="3 Months" data-days="90" data-price="499">3 Months (90 Days) - ₹499</option>
+                        <option value="6 Months" data-days="180" data-price="799">6 Months (180 Days) - ₹799</option>
+                        <option value="1 Year" data-days="365" data-price="1299">1 Year (365 Days) - ₹1299</option>
+                        <option value="lifetime" data-days="36500" data-price="2499">🌟 Lifetime VIP - ₹2499</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group flex-1">
+                      <label for="admin-new-amount">Amount Received (₹) *</label>
+                      <input type="number" id="admin-new-amount" value="199" required />
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group flex-1">
+                      <label for="admin-new-payment-method">Payment Mode</label>
+                      <select id="admin-new-payment-method" class="admin-select">
+                        <option value="UPI / GPay">UPI (GPay / PhonePe / Paytm)</option>
+                        <option value="Direct Bank / IMPS">Direct Bank / IMPS</option>
+                        <option value="Cash / Personal">Cash / Personal</option>
+                        <option value="Crypto">Crypto</option>
+                      </select>
+                    </div>
+
+                    <div class="form-group flex-1">
+                      <label for="admin-new-note">Reference / Notes</label>
+                      <input type="text" id="admin-new-note" placeholder="e.g. GPay Ref #9812" />
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn-cta btn-submit" id="admin-create-btn">
+                    ✨ Create User & Activate Subscription
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Right: Subscribers List & Management -->
+            <div class="admin-col-list">
+              <div class="admin-section-box">
+                <div class="admin-list-header">
+                  <div class="admin-section-title">
+                    <span>📋 Paid Subscribers Database (<span id="admin-list-count">0</span>)</span>
+                  </div>
+                  <input type="text" id="admin-search-subs" class="admin-search-input" placeholder="Filter by username or email..." />
+                </div>
+
+                <div class="admin-subs-container" id="admin-subs-container">
+                  <!-- Subscribers rendered dynamically -->
+                  <div class="admin-loading-state">Loading subscribers...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscription Expired / VIP Access Gate Modal -->
+      <div class="modal-backdrop" id="expired-subscription-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 440px; text-align: center; padding: 2.2rem;">
+          <div style="font-size: 3rem; margin-bottom: 0.8rem;">⚠️</div>
+          <h2 style="color: #f59e0b;">Subscription Expired</h2>
+          <p style="color: var(--text-secondary); margin: 0.8rem 0 1.5rem; font-size: 0.95rem; line-height: 1.5;">
+            Your BingeFlix VIP subscription has expired. To restore uninterrupted access to movies, web series, and anime, please contact the administrator to renew your plan.
+          </p>
+          <div class="sub-renew-box" style="background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.15); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; text-align: left; font-size: 0.88rem;">
+            <p style="margin-bottom: 0.3rem;"><strong>💳 Renewal Plans:</strong></p>
+            <p style="color: var(--text-muted); margin-bottom: 0.2rem;">• 1 Month: ₹199 | 3 Months: ₹499</p>
+            <p style="color: var(--text-muted);">• 1 Year: ₹1,299 | Lifetime VIP: ₹2,499</p>
+          </div>
+          <div style="display: flex; gap: 0.8rem; justify-content: center;">
+            <button type="button" class="btn-primary-ghost" id="close-expired-modal-btn" style="flex: 1; justify-content: center;">Close</button>
+            <button type="button" class="btn-cta" id="contact-admin-renew-btn" style="flex: 1; justify-content: center; background: #22c55e; border-color: #22c55e;">
+              💬 Contact Admin
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Language, Dubbing & Audio Tracks Help Modal -->
+      <div class="modal-backdrop" id="audio-guide-modal" style="display: none;">
+        <div class="auth-card audio-guide-card" style="max-width: 560px; padding: 2rem; max-height: 85vh; overflow-y: auto;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span style="font-size: 1.8rem;">🎧</span>
+              <h2 style="font-size: 1.35rem; margin: 0;">Audio, Dubbing & Language Guide</h2>
+            </div>
+            <button type="button" class="search-clear-btn" id="close-audio-guide-btn" style="display: block; font-size: 1.4rem;">&times;</button>
+          </div>
+
+          <div class="guide-content" style="font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary); display: flex; flex-direction: column; gap: 1.2rem;">
+            <!-- Sound / Mute Solution -->
+            <div class="guide-box" style="background: rgba(229, 9, 20, 0.08); border: 1px solid rgba(229, 9, 20, 0.3); border-radius: 12px; padding: 1rem;">
+              <h4 style="color: #fff; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                🔊 Why Does Video Start Muted?
+              </h4>
+              <p style="margin: 0; font-size: 0.86rem;">
+                Modern browsers (Google Chrome, Edge, Safari, and Android) enforce security policies that prevent cross-origin media from playing sound automatically. You have two easy solutions:
+              </p>
+              <ul style="margin: 0.5rem 0 0 1.2rem; font-size: 0.85rem; color: #fff;">
+                <li>Click the <strong>Volume 🔊 icon</strong> in the bottom-right of the player to unmute.</li>
+                <li>Or click <strong>↗ Pop-out (Full Sound)</strong> above to stream in a dedicated window with full volume.</li>
+              </ul>
+            </div>
+
+            <!-- Hindi Dubbing Truth & Guide -->
+            <div class="guide-box" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem;">
+              <h4 style="color: #fff; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                🇮🇳 Hindi Dubbed & Dual Audio Availability
+              </h4>
+              <p style="margin: 0; font-size: 0.86rem;">
+                Audio availability depends on official studio releases:
+              </p>
+              <ul style="margin: 0.5rem 0 0 1.2rem; font-size: 0.85rem;">
+                <li><strong>Indian Cinema & Hindi Series:</strong> Broadcasted in <strong>100% Native Hindi</strong> audio by default.</li>
+                <li><strong>Major Hollywood Blockbusters:</strong> Franchise films (Marvel, DC, Fast & Furious, Avatar) are officially dubbed in Hindi. Click the <strong>Hindi Dubbed</strong> button above to load dual-audio streams.</li>
+                <li><strong>Western TV Series & Indie Films:</strong> Most international television is not officially dubbed by studios. For these, enable <strong>Hindi Subtitles (CC &gt; Hindi)</strong> on <strong>Player 1 (VidLink)</strong>.</li>
+              </ul>
+            </div>
+
+            <!-- Anime Audio (Sub vs Dub) -->
+            <div class="guide-box" style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 1rem;">
+              <h4 style="color: #fff; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                🍥 Anime Audio Tracks (Japanese Sub vs English Dub)
+              </h4>
+              <p style="margin: 0; font-size: 0.86rem;">
+                Anime is produced in Japanese and available internationally in two formats:
+              </p>
+              <ul style="margin: 0.5rem 0 0 1.2rem; font-size: 0.85rem;">
+                <li><strong>SUB:</strong> Original Japanese voice actors with English subtitles (Recommended for authenticity).</li>
+                <li><strong>DUB:</strong> Official English voice cast.</li>
+                <li>Use the <strong>Japanese (Sub)</strong> or <strong>English (Dub)</strong> buttons above to switch immediately!</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="margin-top: 1.5rem; text-align: center;">
+            <button type="button" class="btn-cta" id="got-it-audio-guide-btn" style="padding: 0.6rem 2rem; border-radius: 30px;">
+              Got It ✓
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleek Animated Clear History Confirmation Modal (Replaces browser confirm) -->
+      <div class="modal-backdrop" id="confirm-clear-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 380px; text-align: center; padding: 2rem;">
+          <div style="font-size: 2.8rem; margin-bottom: 0.8rem;">🗑️</div>
+          <h2>Clear Watch History?</h2>
+          <p style="color: var(--text-secondary); margin: 0.8rem 0 1.6rem; font-size: 0.92rem; line-height: 1.5;">
+            Are you sure you want to clear your entire streaming history? You can also delete individual movies anytime.
+          </p>
+          <div style="display: flex; gap: 0.8rem; justify-content: center;">
+            <button type="button" class="btn-primary-ghost" id="cancel-clear-btn" style="flex: 1; justify-content: center;">Cancel</button>
+            <button type="button" class="btn-cta" id="confirm-clear-btn" style="flex: 1; justify-content: center; background: #dc2626; border-color: #dc2626;">Yes, Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sleek Animated Sign Out Confirmation Modal -->
+      <div class="modal-backdrop" id="confirm-signout-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 380px; text-align: center; padding: 2rem;">
+          <div style="font-size: 2.8rem; margin-bottom: 0.8rem;">🚪</div>
+          <h2>Sign Out of BingeFlix?</h2>
+          <p style="color: var(--text-secondary); margin: 0.8rem 0 1.6rem; font-size: 0.92rem; line-height: 1.5;">
+            Are you sure you want to sign out? Your watchlist & streaming history are saved safely in your account.
+          </p>
+          <div style="display: flex; gap: 0.8rem; justify-content: center;">
+            <button type="button" class="btn-primary-ghost" id="cancel-signout-btn" style="flex: 1; justify-content: center;">Cancel</button>
+            <button type="button" class="btn-cta" id="confirm-signout-btn" style="flex: 1; justify-content: center; background: #dc2626; border-color: #dc2626;">Yes, Sign Out</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast Container -->
+      <div class="toast-container" id="toast-container"></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
