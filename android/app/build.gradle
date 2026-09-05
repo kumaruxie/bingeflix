@@ -22,6 +22,8 @@ android {
             storePassword "bingeflix123"
             keyAlias "bingeflix"
             keyPassword "bingeflix123"
+            v1SigningEnabled true
+            v2SigningEnabled true
         }
     }
     buildTypes {
