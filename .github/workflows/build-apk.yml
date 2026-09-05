@@ -60,16 +60,38 @@ jobs:
       - name: Generate Release Keystore
         run: |
           keytool -genkey -v -keystore android/app/release.keystore -alias bingeflix -keyalg RSA -keysize 2048 -validity 10000 -storepass bingeflix123 -keypass bingeflix123 -dname "CN=BingeFlix, OU=BingeFlix, O=BingeFlix, L=Mumbai, ST=Maharashtra, C=IN"
+          cp android/app/release.keystore android/release.keystore || true
 
       - name: Build Android Signed Release APK
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon --stacktrace
 
+      - name: Dump Diagnostics on Failure
+        if: failure()
+        run: |
+          echo "=== GRADLE FAILURE DIAGNOSTICS ==="
+          find android/ -name "*.log" -o -name "*.txt" || true
+
+      - name: Upload Failure Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-failure-logs
+          path: |
+            android/app/build/reports/
+            android/app/build/outputs/logs/
+
       - name: Prepare Release APK Artifact
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk BingeFlix-release.apk
-          cp android/app/build/outputs/apk/release/app-release.apk BingeFlix.apk
+          APK_FILE=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: No APK was generated in android/app/build/outputs/apk"
+            exit 1
+          fi
+          echo "Found APK at: $APK_FILE"
+          cp "$APK_FILE" BingeFlix-release.apk
+          cp "$APK_FILE" BingeFlix.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
