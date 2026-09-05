@@ -1,0 +1,86 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Build Web Production Bundle
+        run: npm run build
+        env:
+          VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY || 'df1c541385e699bbed7ffd32934162da' }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'AIzaSyBBUrSt0nBcKcg21sShUWqJ_BPLUNEINh8' }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'bingeflix-7b30f.firebaseapp.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'bingeflix-7b30f' }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'bingeflix-7b30f.firebasestorage.app' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '839516474748' }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:839516474748:web:88639597084274c170e8f9' }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID || 'G-GB7KHZPLL8' }}
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Make Gradlew Executable
+        run: chmod +x ./android/gradlew
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk BingeFlix-debug.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BingeFlix-debug-apk
+          path: BingeFlix-debug.apk
+
+      - name: Create Release with APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: v1.0.0-apk
+          name: BingeFlix Android APK v1.0.0
+          body: |
+            ## 📱 BingeFlix Android APK Release
+            Install directly on any Android phone!
+            
+            - **App Name:** BingeFlix
+            - **Package:** com.bingeflix.app
+            - **Features:** 4K Streaming, Anime Sub/Dub, Cartoons & Series Archive, Multi-Track Audio, 4-Device Login Limits.
+          files: |
+            BingeFlix-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

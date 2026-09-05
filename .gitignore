@@ -12,13 +12,15 @@ dist
 dist-ssr
 *.local
 
-# Environment variables (Never commit private keys)
+# Environment variables (NEVER commit private keys)
 .env
 .env.local
 .env.*.local
 
-# Android & Build Artifacts
-android/
+# Android build outputs & caches (Allow source code for CI/CD APK build)
+android/.gradle/
+android/app/build/
+android/build/
 capacitor.config.json.timestamp-*
 
 # Editor directories and files
