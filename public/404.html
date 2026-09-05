@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BingeFlix - Redirecting...</title>
+  <script>
+    // GitHub Pages SPA Fallback handler
+    const fullUrl = window.location.href;
+    const path = window.location.pathname;
+    if (path.includes('/adm') || fullUrl.includes('adm')) {
+      const repoBase = path.includes('/bingeflix') ? '/bingeflix' : '';
+      window.location.replace(window.location.origin + repoBase + '/#adm');
+    } else {
+      const repoBase = path.includes('/bingeflix') ? '/bingeflix/' : '/';
+      window.location.replace(window.location.origin + repoBase);
+    }
+  </script>
+</head>
+<body style="background: #0f1016; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
+  <p>Redirecting to BingeFlix...</p>
+</body>
+</html>

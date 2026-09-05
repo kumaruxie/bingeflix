@@ -554,6 +554,12 @@
           <p class="auth-switch-text" style="color: var(--text-muted); font-size: 0.82rem; margin-top: 1.2rem; text-align: center;">
             Don't have an account? Contact Administrator to get access.
           </p>
+
+          <div style="text-align: center; margin-top: 1.2rem; padding-top: 0.8rem; border-top: 1px dashed rgba(255,255,255,0.12);">
+            <button type="button" id="auth-admin-link" style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b; font-size: 0.82rem; font-weight: 600; padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; transition: all 0.2s ease;">
+              🛡️ Admin Access (/adm)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -624,7 +630,7 @@
       </div>
 
       <!-- Admin Passcode Gate Modal -->
-      <div class="modal-backdrop" id="admin-login-modal" style="display: none;">
+      <div class="modal-backdrop" id="admin-login-modal" style="display: none; z-index: 99999;">
         <div class="auth-card" style="max-width: 400px;">
           <button class="modal-close-btn" id="admin-login-close">&times;</button>
           <div class="auth-header">
@@ -645,7 +651,7 @@
       </div>
 
       <!-- Comprehensive Admin Subscription Dashboard Modal -->
-      <div class="modal-backdrop" id="admin-dashboard-modal" style="display: none;">
+      <div class="modal-backdrop" id="admin-dashboard-modal" style="display: none; z-index: 99999;">
         <div class="admin-dashboard-card">
           <!-- Dashboard Top Header -->
           <div class="admin-dash-header">

@@ -2214,6 +2214,10 @@ function setupAdminPanel() {
     const userDropdown = document.getElementById('user-menu-dropdown');
     if (userDropdown) userDropdown.style.display = 'none';
 
+    // Hide auth modal if active so modals do not overlap
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) authModal.style.display = 'none';
+
     if (state.adminAuthenticated) {
       openAdminDashboard();
     } else {
@@ -2230,21 +2234,56 @@ function setupAdminPanel() {
   if (menuAdminBtn) menuAdminBtn.addEventListener('click', openAdminEntry);
   if (drawerAdminBtn) drawerAdminBtn.addEventListener('click', openAdminEntry);
 
-  // Deep link listener for /adm and #adm
+  const authAdminLink = document.getElementById('auth-admin-link');
+  if (authAdminLink) {
+    authAdminLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      openAdminEntry();
+    });
+  }
+
+  // Deep link listener for /adm, #adm, ?adm
   function checkAdmUrl() {
     const hash = (window.location.hash || '').toLowerCase();
     const path = (window.location.pathname || '').toLowerCase();
-    if (hash === '#adm' || hash === '#/adm' || path === '/adm' || path.endsWith('/adm')) {
+    const search = (window.location.search || '').toLowerCase();
+    if (
+      hash.includes('adm') || 
+      path.includes('/adm') || 
+      path.endsWith('adm') || 
+      search.includes('adm')
+    ) {
       openAdminEntry();
     }
   }
   window.addEventListener('hashchange', checkAdmUrl);
-  setTimeout(checkAdmUrl, 200);
+  setTimeout(checkAdmUrl, 150);
+  setTimeout(checkAdmUrl, 500);
+
+  // Global Admin shortcut: Alt+A
+  window.addEventListener('keydown', (e) => {
+    if ((e.altKey && (e.key === 'a' || e.key === 'A')) || (e.ctrlKey && e.shiftKey && (e.key === 'a' || e.key === 'A'))) {
+      e.preventDefault();
+      openAdminEntry();
+    }
+  });
 
   if (adminLoginClose && adminLoginModal) {
-    adminLoginClose.onclick = () => adminLoginModal.style.display = 'none';
+    adminLoginClose.onclick = () => {
+      adminLoginModal.style.display = 'none';
+      if (!state.currentUser) {
+        const authModal = document.getElementById('auth-modal');
+        if (authModal) authModal.style.display = 'flex';
+      }
+    };
     adminLoginModal.onclick = (e) => {
-      if (e.target === adminLoginModal) adminLoginModal.style.display = 'none';
+      if (e.target === adminLoginModal) {
+        adminLoginModal.style.display = 'none';
+        if (!state.currentUser) {
+          const authModal = document.getElementById('auth-modal');
+          if (authModal) authModal.style.display = 'flex';
+        }
+      }
     };
   }
 
@@ -2268,6 +2307,10 @@ function setupAdminPanel() {
   }
 
   function openAdminDashboard() {
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) authModal.style.display = 'none';
+    if (adminLoginModal) adminLoginModal.style.display = 'none';
+
     if (adminDashModal) {
       adminDashModal.style.display = 'flex';
       loadAndRenderAdminSubscribers();
@@ -2275,7 +2318,13 @@ function setupAdminPanel() {
   }
 
   if (adminDashClose && adminDashModal) {
-    adminDashClose.onclick = () => adminDashModal.style.display = 'none';
+    adminDashClose.onclick = () => {
+      adminDashModal.style.display = 'none';
+      if (!state.currentUser) {
+        const authModal = document.getElementById('auth-modal');
+        if (authModal) authModal.style.display = 'flex';
+      }
+    };
   }
 
   if (adminRefreshBtn) {
