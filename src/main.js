@@ -22,10 +22,10 @@ const IMG_BASE_URL = 'https://image.tmdb.org/t/p';
 
 // Anime Avatars Map (Real Anime Icons & Stylized Avatars)
 export const ANIME_AVATARS = {
-  goku: '/avatars/goku.jpg',
-  naruto: '/avatars/naruto.jpg',
-  luffy: '/avatars/luffy.jpg',
-  doraemon: '/avatars/doraemon.png',
+  goku: './avatars/goku.jpg',
+  naruto: './avatars/naruto.jpg',
+  luffy: './avatars/luffy.jpg',
+  doraemon: './avatars/doraemon.png',
   zoro: 'https://api.dicebear.com/7.x/adventurer/svg?seed=ZoroOnePiece&backgroundColor=2e7d32',
   gojo: 'https://api.dicebear.com/7.x/adventurer/svg?seed=GojoSatoru&backgroundColor=0288d1',
   tanjiro: 'https://api.dicebear.com/7.x/adventurer/svg?seed=TanjiroDemonSlayer&backgroundColor=00695c',

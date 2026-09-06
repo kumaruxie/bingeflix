@@ -12,8 +12,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     
     <!-- App Logo Favicon -->
-    <!-- App Favicon: Iconic Red 'b' Only without text -->
     <link rel="icon" type="image/png" href="./favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
     <link rel="stylesheet" href="./src/style.css" />
 
     <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
@@ -30,7 +31,7 @@
       <header class="navbar" id="navbar">
         <div class="nav-left">
           <a href="#" class="brand-logo" id="logo-btn">
-            <img src="./favicon.png" alt="AXON Logo" class="brand-logo-icon" style="width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(229, 9, 20, 0.45));" />
+            <img src="./favicon.png" alt="AXON Logo" class="brand-logo-icon" onerror="this.onerror=null;this.src='./favicon.svg';" style="width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(229, 9, 20, 0.45));" />
             <span class="brand-name">AX<span class="text-accent">ON</span></span>
           </a>
 
@@ -79,7 +80,7 @@
         <div class="mobile-drawer" id="mobile-drawer">
           <div class="drawer-header">
             <div class="drawer-brand">
-              <img src="./favicon.png" alt="AXON" class="drawer-logo" style="width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.4));" />
+              <img src="./favicon.png" alt="AXON" class="drawer-logo" onerror="this.onerror=null;this.src='./favicon.svg';" style="width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.4));" />
               <span>AX<span class="text-accent">ON</span></span>
             </div>
             <button class="drawer-close-btn" id="drawer-close">&times;</button>
@@ -494,7 +495,7 @@
       <!-- App Footer with Official Logo -->
       <footer class="app-footer" style="border-top: 1px solid var(--border-glass); padding: 2.5rem 1.5rem 2rem; background: rgba(7, 9, 14, 0.95); text-align: center; margin-top: 3rem;">
         <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 0.8rem;">
-          <img src="./favicon.png" alt="AXON" style="width: 32px; height: 32px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.5));" />
+          <img src="./favicon.png" alt="AXON" onerror="this.onerror=null;this.src='./favicon.svg';" style="width: 32px; height: 32px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.5));" />
           <span style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: #fff;">AX<span class="text-accent">ON</span></span>
         </div>
         <p style="color: var(--text-muted); font-size: 0.84rem; max-width: 480px; margin: 0 auto 1rem; line-height: 1.6;">
