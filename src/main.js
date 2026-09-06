@@ -73,7 +73,11 @@ const state = {
   currentEpisode: 1,
   activeSourceType: 'vidlink',
   currentStreamUrl: '',
-  activeLibraryTab: 'watchlist'
+  activeLibraryTab: 'watchlist',
+  aspectRatio: '16-9',
+  brightness: 100,
+  volumeBoost: 100,
+  activeDubLang: 'hi'
 };
 
 // ==========================================================================
@@ -1208,6 +1212,9 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   // Mount Video Player
   mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
 
+  // Initialize v2.0 Player Pro Toolbar (Dubbing, Aspect Ratio, Brightness, Audio & Gestures)
+  setupPlayerProToolbar(details, isTv);
+
   // Record into Watch History
   recordMovieToHistory(details);
 
@@ -1502,7 +1509,13 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
         mozallowfullscreen="true"
         referrerpolicy="no-referrer">
       </iframe>
+      <div class="player-gesture-hud" id="player-gesture-hud" style="display: none;">
+        <span class="hud-icon" id="hud-icon">☀️</span>
+        <span class="hud-value" id="hud-value">100%</span>
+      </div>
     `;
+    applyPlayerBrightness(state.brightness || 100);
+    applyPlayerAspectRatio(state.aspectRatio || '16-9');
   } else {
     cinemaScreen.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 3rem;">
@@ -1510,6 +1523,224 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
         <p style="margin-top: 0.5rem;">Click Server 1, Server 2, Server 3, Server 4 or Server 5 to stream.</p>
       </div>
     `;
+  }
+}
+
+// ==========================================================================
+// AXON v2.0 Player Pro Engine: Aspect Ratio, Brightness, Audio, Touch Gestures
+// ==========================================================================
+
+export function applyPlayerAspectRatio(ratio) {
+  state.aspectRatio = ratio;
+  const screen = document.getElementById('cinema-screen');
+  const iframe = document.getElementById('video-player-iframe');
+  if (!screen) return;
+
+  screen.classList.remove('ar-16-9', 'ar-21-9', 'ar-4-3', 'ar-fill', 'ar-zoom');
+  screen.classList.add(`ar-${ratio}`);
+
+  if (ratio === 'fill') {
+    screen.style.aspectRatio = 'auto';
+    screen.style.height = '75vh';
+  } else if (ratio === '21-9') {
+    screen.style.aspectRatio = '21 / 9';
+    screen.style.height = '';
+  } else if (ratio === '4-3') {
+    screen.style.aspectRatio = '4 / 3';
+    screen.style.height = '';
+  } else {
+    screen.style.aspectRatio = '16 / 9';
+    screen.style.height = '';
+  }
+
+  if (iframe) {
+    iframe.style.transform = ratio === 'zoom' ? 'scale(1.18)' : '';
+  }
+
+  document.querySelectorAll('#aspect-ratio-group .ar-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ar === ratio);
+  });
+}
+
+export function applyPlayerBrightness(val) {
+  state.brightness = parseInt(val, 10) || 100;
+  const screen = document.getElementById('cinema-screen');
+  const text = document.getElementById('brightness-val-text');
+  const slider = document.getElementById('player-brightness-slider');
+  
+  if (screen) {
+    screen.style.filter = `brightness(${state.brightness / 100})`;
+  }
+  if (text) text.textContent = `${state.brightness}%`;
+  if (slider && parseInt(slider.value, 10) !== state.brightness) {
+    slider.value = state.brightness;
+  }
+
+  document.querySelectorAll('[data-preset-brightness]').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.presetBrightness, 10) === state.brightness);
+  });
+}
+
+export function applyPlayerVolumeBoost(val) {
+  state.volumeBoost = parseInt(val, 10) || 100;
+  const text = document.getElementById('volume-val-text');
+  const slider = document.getElementById('player-volume-slider');
+  
+  if (text) {
+    text.textContent = (state.volumeBoost > 100 ? '🚀 ' : '') + `${state.volumeBoost}%`;
+  }
+  if (slider && parseInt(slider.value, 10) !== state.volumeBoost) {
+    slider.value = state.volumeBoost;
+  }
+
+  document.querySelectorAll('[data-preset-volume]').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.presetVolume, 10) === state.volumeBoost);
+  });
+}
+
+function showPlayerGestureHud(icon, text) {
+  const hud = document.getElementById('player-gesture-hud');
+  const iconEl = document.getElementById('hud-icon');
+  const valEl = document.getElementById('hud-value');
+  if (!hud || !iconEl || !valEl) return;
+
+  iconEl.textContent = icon;
+  valEl.textContent = text;
+  hud.style.display = 'flex';
+
+  if (window._hudTimer) clearTimeout(window._hudTimer);
+  window._hudTimer = setTimeout(() => {
+    hud.style.display = 'none';
+  }, 1200);
+}
+
+export function setupPlayerProToolbar(details, isTv) {
+  // 1. Aspect Ratio Buttons
+  document.querySelectorAll('#aspect-ratio-group .ar-btn').forEach(btn => {
+    btn.onclick = () => {
+      const ar = btn.dataset.ar;
+      applyPlayerAspectRatio(ar);
+      const label = ar === '21-9' ? '21:9 (Cinematic)' : ar === 'fill' ? 'Fill Screen' : ar === 'zoom' ? 'Zoom (Crop Bars)' : ar.replace('-', ':');
+      showToast(`Aspect Ratio: ${label}`);
+    };
+  });
+
+  // 2. Brightness Slider & Presets
+  const brightSlider = document.getElementById('player-brightness-slider');
+  if (brightSlider) {
+    brightSlider.oninput = (e) => {
+      applyPlayerBrightness(e.target.value);
+    };
+  }
+  document.querySelectorAll('[data-preset-brightness]').forEach(btn => {
+    btn.onclick = () => {
+      const val = parseInt(btn.dataset.presetBrightness, 10);
+      applyPlayerBrightness(val);
+      showToast(`☀️ Brightness: ${val}%`);
+    };
+  });
+
+  // 3. Audio Boost Slider & Presets
+  const volSlider = document.getElementById('player-volume-slider');
+  if (volSlider) {
+    volSlider.oninput = (e) => {
+      applyPlayerVolumeBoost(e.target.value);
+    };
+  }
+  document.querySelectorAll('[data-preset-volume]').forEach(btn => {
+    btn.onclick = () => {
+      const val = parseInt(btn.dataset.presetVolume, 10);
+      applyPlayerVolumeBoost(val);
+      if (val > 100) {
+        showToast(`🔊 Audio Boosted to ${val}%`);
+      } else {
+        showToast(`🔊 Audio set to ${val}%`);
+      }
+    };
+  });
+
+  // 4. Multi-Language Dubbing (NetMirror / MovieBox style)
+  const dubPills = document.querySelectorAll('#player-dub-list .dub-pill');
+  dubPills.forEach(pill => {
+    pill.onclick = () => {
+      dubPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      const lang = pill.dataset.lang;
+      state.activeDubLang = lang;
+
+      function syncServerBtns(serverType) {
+        document.querySelectorAll('.source-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.server === serverType);
+        });
+      }
+
+      if (lang === 'hi') {
+        state.activeSourceType = 'html5';
+        syncServerBtns('html5');
+        mountVideoPlayer(details, 'html5', state.currentSeason || 1, state.currentEpisode || 1);
+        showToast('🇮🇳 Switched to Hindi Dubbed stream on Server 2');
+      } else if (lang === 'en') {
+        state.activeSourceType = 'vidlink';
+        syncServerBtns('vidlink');
+        mountVideoPlayer(details, 'vidlink', state.currentSeason || 1, state.currentEpisode || 1);
+        showToast('🇺🇸 Switched to English stream on Server 1');
+      } else if (lang === 'ja') {
+        state.activeSourceType = 'smashy';
+        syncServerBtns('smashy');
+        mountVideoPlayer(details, 'smashy', state.currentSeason || 1, state.currentEpisode || 1);
+        showToast('🇯🇵 Switched to Original Japanese stream on Server 3');
+      } else {
+        state.activeSourceType = 'vidsrc';
+        syncServerBtns('vidsrc');
+        mountVideoPlayer(details, 'vidsrc', state.currentSeason || 1, state.currentEpisode || 1);
+        showToast('✨ Multi-Audio / Dual Audio Stream activated');
+      }
+    };
+  });
+
+  // 5. Mobile Touch Gestures on #cinema-screen (Swipe HUD)
+  const screen = document.getElementById('cinema-screen');
+  if (screen && !screen._gestureAttached) {
+    screen._gestureAttached = true;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isAdjusting = false;
+    let gestureType = ''; // 'brightness' or 'volume'
+
+    screen.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const rect = screen.getBoundingClientRect();
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        const relativeX = touchStartX - rect.left;
+        gestureType = relativeX < rect.width / 2 ? 'brightness' : 'volume';
+        isAdjusting = true;
+      }
+    }, { passive: true });
+
+    screen.addEventListener('touchmove', (e) => {
+      if (!isAdjusting || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const deltaY = touchStartY - touch.clientY;
+      if (Math.abs(deltaY) > 8) {
+        const step = Math.round(deltaY * 0.4);
+        if (gestureType === 'brightness') {
+          const newBright = Math.min(150, Math.max(30, (state.brightness || 100) + step));
+          applyPlayerBrightness(newBright);
+          showPlayerGestureHud('☀️', `${newBright}%`);
+        } else {
+          const newVol = Math.min(200, Math.max(50, (state.volumeBoost || 100) + step));
+          applyPlayerVolumeBoost(newVol);
+          showPlayerGestureHud('🔊', `${newVol}%`);
+        }
+        touchStartY = touch.clientY;
+      }
+    }, { passive: true });
+
+    screen.addEventListener('touchend', () => {
+      isAdjusting = false;
+    }, { passive: true });
   }
 }
 

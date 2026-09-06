@@ -103,11 +103,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main')
         with:
-          tag_name: v1.0.0-apk
-          name: BingeFlix Android APK v1.0.0 (Signed Release)
+          tag_name: v2.0.0-apk
+          name: BingeFlix Android APK v2.0.0 (Pro Release)
           body: |
-            ## 📱 BingeFlix Android Official Release
+            ## 📱 BingeFlix Android Official Release v2.0.0 Pro
             ✅ **Signed Release APK** (No debug certificate issues)
+            
+            ### 🚀 What's New in Version 2.0 Pro:
+            - 📐 **Aspect Ratio Controls:** 16:9 widescreen, 21:9 CinemaScope Ultrawide, 4:3 TV, and Fill/Zoom modes.
+            - ☀️ **In-Player Brightness Adjustments:** Live display brightness control (30% to 150%).
+            - 🔊 **Audio Boost Controls:** Volume boost from 100% to 200% for quiet movie streams.
+            - 🖐️ **Touch Swipe Gestures:** Swipe left for Brightness, Swipe right for Volume (MX Player / VLC style).
+            - 🌐 **Multi-Language Dubbing:** 1-tap switching for Hindi Dubbed, English Sub/Dub, and Japanese Anime audio (NetMirror & MovieBox style).
+            - ⚡ **5 Active Ultra-HD Streaming Servers:** VidLink, MultiEmbed, AutoEmbed, VidSrc PM, and 2Embed.
             
             ### Installation Instructions:
             1. Download `BingeFlix.apk` to your Android phone.
@@ -118,7 +126,6 @@ jobs:
             
             - **Package:** `com.bingeflix.app`
             - **Target:** Android 8.0 - Android 15 (API 24 - 34)
-            - **Features:** 4K Multi-server streaming, Anime Sub/Dub, Cartoons, 4-Device accounts.
           files: |
             BingeFlix.apk
             BingeFlix-release.apk
