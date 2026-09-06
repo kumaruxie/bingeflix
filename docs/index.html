@@ -18,8 +18,8 @@
     <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
-    <script type="module" crossorigin src="./assets/index-CsRJayRm.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BVRxEZgi.css">
+    <script type="module" crossorigin src="./assets/index-DC-b4SfY.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BdZWFZL1.css">
   </head>
   <body>
     <div id="app">
@@ -33,7 +33,6 @@
           <a href="#" class="brand-logo" id="logo-btn">
             <img src="./favicon.png" alt="AXON Logo" class="brand-logo-icon" style="width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(229, 9, 20, 0.45));" />
             <span class="brand-name">AX<span class="text-accent">ON</span></span>
-            <span class="badge-v2">v2.0 Pro</span>
           </a>
 
           <nav class="nav-links desktop-only">
@@ -47,11 +46,6 @@
         </div>
 
         <div class="nav-right">
-          <!-- Direct Android App Download Button (APK v2.0) -->
-          <a href="https://github.com/kumaruxie/bingeflix/releases/tag/v2.0.0-apk" target="_blank" rel="noopener" class="btn-download-apk desktop-only" title="Download Official Android App (APK v2.0)">
-            <span class="apk-icon">📱</span> <span class="apk-text">App v2.0</span>
-          </a>
-
           <!-- Real-Time Search Box -->
           <div class="search-box-wrapper">
             <div class="search-input-container">
@@ -101,13 +95,6 @@
             <button class="drawer-item" data-category="watchlist">
               🔖 My Watchlist <span class="badge-count" id="drawer-watchlist-count">0</span>
             </button>
-            <a href="https://github.com/kumaruxie/bingeflix/releases/tag/v2.0.0-apk" target="_blank" rel="noopener" class="drawer-item" style="background: linear-gradient(135deg, rgba(229,9,20,0.25), rgba(245,158,11,0.2)); border: 1px solid rgba(229,9,20,0.5); color: #fff; margin-top: 0.6rem;">
-              <span style="display: flex; align-items: center; gap: 0.6rem;">
-                <span>📱</span>
-                <span><strong>Download App</strong> (APK v2.0)</span>
-              </span>
-              <span style="font-size: 0.72rem; background: var(--accent-red); color: #fff; padding: 2px 7px; border-radius: 99px;">FREE</span>
-            </a>
           </div>
         </div>
       </div>
@@ -335,81 +322,35 @@
           <div class="cinema-player-wrapper">
             <div class="cinema-screen" id="cinema-screen">
               <!-- Video / Trailer iFrame will be dynamically mounted here -->
+
+              <!-- In-Player Floating Overlay Controls (100% Inside Video Screen) -->
+              <div class="player-invideo-overlay" id="player-invideo-overlay">
+                <button type="button" class="invideo-btn" id="btn-inplayer-ar" title="Click to Cycle Aspect Ratio (16:9, 21:9, 4:3, Fill)">
+                  <span class="invideo-icon">📐</span>
+                  <span id="inplayer-ar-label">16:9</span>
+                </button>
+
+                <div class="invideo-brightness-control">
+                  <button type="button" class="invideo-btn" id="btn-inplayer-bright" title="Screen Brightness (Click to toggle menu)">
+                    <span class="invideo-icon">☀️</span>
+                    <span id="inplayer-bright-label">100%</span>
+                  </button>
+                  <div class="invideo-bright-dropdown" id="inplayer-bright-menu" style="display: none;">
+                    <span class="bright-menu-title">Brightness</span>
+                    <input type="range" id="inplayer-brightness-slider" min="30" max="150" value="100" />
+                    <div class="bright-quick-presets">
+                      <button type="button" data-val="60">60%</button>
+                      <button type="button" data-val="100" class="active">100%</button>
+                      <button type="button" data-val="140">140%</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
-              <!-- Floating On-Screen Gesture HUD (Brightness / Volume indicator) -->
+              <!-- Floating On-Screen Gesture HUD (Brightness indicator) -->
               <div class="player-gesture-hud" id="player-gesture-hud" style="display: none;">
                 <span class="hud-icon" id="hud-icon">☀️</span>
                 <span class="hud-value" id="hud-value">100%</span>
-              </div>
-            </div>
-
-            <!-- v2.0 Player Pro Toolbar: Dubbing, Aspect Ratio, Brightness & Audio Boost -->
-            <div class="player-pro-toolbar" id="player-pro-toolbar">
-              <!-- Multi-Language Dubbed Selector (Like NetMirror & MovieBox) -->
-              <div class="pro-toolbar-row dub-row">
-                <div class="pro-row-label">
-                  <span class="pro-label-icon">🌐</span>
-                  <span>Audio & Dub:</span>
-                </div>
-                <div class="dub-pills-list" id="player-dub-list">
-                  <button type="button" class="dub-pill active" data-lang="hi" id="dub-pill-hi" title="Switch to Hindi Dubbed Stream">
-                    <span class="pill-badge">HINDI</span> 🇮🇳 Hindi Dubbed
-                  </button>
-                  <button type="button" class="dub-pill" data-lang="en" id="dub-pill-en" title="Switch to English Audio / Subtitles">
-                    🇺🇸 English (Original/Sub)
-                  </button>
-                  <button type="button" class="dub-pill" data-lang="ja" id="dub-pill-ja" title="Switch to Japanese Original Anime Audio">
-                    🇯🇵 Japanese (Anime)
-                  </button>
-                  <button type="button" class="dub-pill" data-lang="multi" id="dub-pill-multi" title="Multi-Audio Server Stream">
-                    ✨ Multi-Audio
-                  </button>
-                </div>
-              </div>
-
-              <!-- Aspect Ratio, Brightness & Audio Boost Controls -->
-              <div class="pro-toolbar-row controls-row">
-                <!-- Aspect Ratio Controls -->
-                <div class="control-group">
-                  <span class="control-group-title">📐 Aspect Ratio:</span>
-                  <div class="aspect-ratio-buttons" id="aspect-ratio-group">
-                    <button type="button" class="ar-btn active" data-ar="16-9" title="Standard 16:9 widescreen">16:9</button>
-                    <button type="button" class="ar-btn" data-ar="21-9" title="21:9 CinemaScope Ultrawide">21:9</button>
-                    <button type="button" class="ar-btn" data-ar="4-3" title="Classic 4:3 TV ratio">4:3</button>
-                    <button type="button" class="ar-btn" data-ar="fill" title="Fill available screen height">Fill</button>
-                    <button type="button" class="ar-btn" data-ar="zoom" title="Crop & Zoom to fill black bars">Zoom</button>
-                  </div>
-                </div>
-
-                <!-- Brightness Control -->
-                <div class="control-group">
-                  <span class="control-group-title">
-                    <span id="brightness-label-icon">☀️</span> Brightness: <strong id="brightness-val-text">100%</strong>
-                  </span>
-                  <div class="slider-control-box">
-                    <input type="range" id="player-brightness-slider" min="30" max="150" value="100" class="pro-slider" title="Adjust player screen brightness" />
-                    <div class="quick-preset-btns">
-                      <button type="button" class="preset-btn" data-preset-brightness="60">60%</button>
-                      <button type="button" class="preset-btn active" data-preset-brightness="100">100%</button>
-                      <button type="button" class="preset-btn" data-preset-brightness="140">140%</button>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Audio Boost Control -->
-                <div class="control-group">
-                  <span class="control-group-title">
-                    <span id="volume-label-icon">🔊</span> Audio Boost: <strong id="volume-val-text">100%</strong>
-                  </span>
-                  <div class="slider-control-box">
-                    <input type="range" id="player-volume-slider" min="50" max="200" value="100" class="pro-slider" title="Adjust audio level / boost" />
-                    <div class="quick-preset-btns">
-                      <button type="button" class="preset-btn active" data-preset-volume="100">100%</button>
-                      <button type="button" class="preset-btn" data-preset-volume="150">150%</button>
-                      <button type="button" class="preset-btn" data-preset-volume="200">🚀 200%</button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
             
@@ -442,17 +383,6 @@
                 <button class="source-btn popout-btn" id="player-external-btn" title="Open Stream in Full Tab">
                   ↗ Pop-out
                 </button>
-              </div>
-            </div>
-
-            <!-- In-Player Audio & Caption Size Settings Tip Bar -->
-            <div class="player-tip-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.65rem 1.2rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-glass); border-radius: 10px; margin-top: 0.75rem; font-size: 0.83rem; color: var(--text-secondary); flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 0.6rem;">
-                <span style="color: var(--accent-red); font-size: 1.1rem;">⚙️</span>
-                <span><strong>In-Video Controls:</strong> Click <strong>⚙️ Settings</strong> inside the video player to customize <strong>Caption Size (50% – 200%)</strong> & switch <strong>Audio Tracks</strong> directly.</span>
-              </div>
-              <div style="display: flex; align-items: center; gap: 0.4rem; color: #94a3b8; font-size: 0.8rem;">
-                <span>💬 Built-in CC Subtitles & Audio</span>
               </div>
             </div>
 

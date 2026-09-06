@@ -75,9 +75,7 @@ const state = {
   currentStreamUrl: '',
   activeLibraryTab: 'watchlist',
   aspectRatio: '16-9',
-  brightness: 100,
-  volumeBoost: 100,
-  activeDubLang: 'hi'
+  brightness: 100
 };
 
 // ==========================================================================
@@ -1209,11 +1207,8 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     };
   });
 
-  // Mount Video Player
+  // Mount Video Player (mounts video & in-player overlay controls)
   mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
-
-  // Initialize v2.0 Player Pro Toolbar (Dubbing, Aspect Ratio, Brightness, Audio & Gestures)
-  setupPlayerProToolbar(details, isTv);
 
   // Record into Watch History
   recordMovieToHistory(details);
@@ -1509,6 +1504,32 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
         mozallowfullscreen="true"
         referrerpolicy="no-referrer">
       </iframe>
+
+      <!-- In-Player Floating Overlay Controls (100% Inside Video Screen) -->
+      <div class="player-invideo-overlay" id="player-invideo-overlay">
+        <button type="button" class="invideo-btn" id="btn-inplayer-ar" title="Click to Cycle Aspect Ratio (16:9, 21:9, 4:3, Fill)">
+          <span class="invideo-icon">📐</span>
+          <span id="inplayer-ar-label">${(state.aspectRatio || '16-9').replace('-', ':')}</span>
+        </button>
+
+        <div class="invideo-brightness-control">
+          <button type="button" class="invideo-btn" id="btn-inplayer-bright" title="Screen Brightness (Click to adjust)">
+            <span class="invideo-icon">☀️</span>
+            <span id="inplayer-bright-label">${state.brightness || 100}%</span>
+          </button>
+          <div class="invideo-bright-dropdown" id="inplayer-bright-menu" style="display: none;">
+            <span class="bright-menu-title">Brightness</span>
+            <input type="range" id="inplayer-brightness-slider" min="30" max="150" value="${state.brightness || 100}" />
+            <div class="bright-quick-presets">
+              <button type="button" data-val="60">60%</button>
+              <button type="button" data-val="100" class="active">100%</button>
+              <button type="button" data-val="140">140%</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating On-Screen Gesture HUD (Brightness indicator) -->
       <div class="player-gesture-hud" id="player-gesture-hud" style="display: none;">
         <span class="hud-icon" id="hud-icon">☀️</span>
         <span class="hud-value" id="hud-value">100%</span>
@@ -1516,6 +1537,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
     `;
     applyPlayerBrightness(state.brightness || 100);
     applyPlayerAspectRatio(state.aspectRatio || '16-9');
+    setupInPlayerControls();
   } else {
     cinemaScreen.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 3rem;">
@@ -1527,16 +1549,17 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
 }
 
 // ==========================================================================
-// AXON v2.0 Player Pro Engine: Aspect Ratio, Brightness, Audio, Touch Gestures
+// In-Player Controls Engine: Aspect Ratio, Brightness & Mobile Gestures
 // ==========================================================================
 
 export function applyPlayerAspectRatio(ratio) {
   state.aspectRatio = ratio;
   const screen = document.getElementById('cinema-screen');
   const iframe = document.getElementById('video-player-iframe');
+  const arLabel = document.getElementById('inplayer-ar-label');
   if (!screen) return;
 
-  screen.classList.remove('ar-16-9', 'ar-21-9', 'ar-4-3', 'ar-fill', 'ar-zoom');
+  screen.classList.remove('ar-16-9', 'ar-21-9', 'ar-4-3', 'ar-fill');
   screen.classList.add(`ar-${ratio}`);
 
   if (ratio === 'fill') {
@@ -1553,48 +1576,29 @@ export function applyPlayerAspectRatio(ratio) {
     screen.style.height = '';
   }
 
-  if (iframe) {
-    iframe.style.transform = ratio === 'zoom' ? 'scale(1.18)' : '';
+  if (arLabel) {
+    arLabel.textContent = ratio === 'fill' ? 'Fill' : ratio.replace('-', ':');
   }
-
-  document.querySelectorAll('#aspect-ratio-group .ar-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.ar === ratio);
-  });
 }
 
 export function applyPlayerBrightness(val) {
   state.brightness = parseInt(val, 10) || 100;
   const screen = document.getElementById('cinema-screen');
-  const text = document.getElementById('brightness-val-text');
-  const slider = document.getElementById('player-brightness-slider');
+  const brightLabel = document.getElementById('inplayer-bright-label');
+  const slider = document.getElementById('inplayer-brightness-slider');
   
   if (screen) {
     screen.style.filter = `brightness(${state.brightness / 100})`;
   }
-  if (text) text.textContent = `${state.brightness}%`;
+  if (brightLabel) {
+    brightLabel.textContent = `${state.brightness}%`;
+  }
   if (slider && parseInt(slider.value, 10) !== state.brightness) {
     slider.value = state.brightness;
   }
 
-  document.querySelectorAll('[data-preset-brightness]').forEach(btn => {
-    btn.classList.toggle('active', parseInt(btn.dataset.presetBrightness, 10) === state.brightness);
-  });
-}
-
-export function applyPlayerVolumeBoost(val) {
-  state.volumeBoost = parseInt(val, 10) || 100;
-  const text = document.getElementById('volume-val-text');
-  const slider = document.getElementById('player-volume-slider');
-  
-  if (text) {
-    text.textContent = (state.volumeBoost > 100 ? '🚀 ' : '') + `${state.volumeBoost}%`;
-  }
-  if (slider && parseInt(slider.value, 10) !== state.volumeBoost) {
-    slider.value = state.volumeBoost;
-  }
-
-  document.querySelectorAll('[data-preset-volume]').forEach(btn => {
-    btn.classList.toggle('active', parseInt(btn.dataset.presetVolume, 10) === state.volumeBoost);
+  document.querySelectorAll('#inplayer-bright-menu .bright-quick-presets button').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.val, 10) === state.brightness);
   });
 }
 
@@ -1614,127 +1618,86 @@ function showPlayerGestureHud(icon, text) {
   }, 1200);
 }
 
-export function setupPlayerProToolbar(details, isTv) {
-  // 1. Aspect Ratio Buttons
-  document.querySelectorAll('#aspect-ratio-group .ar-btn').forEach(btn => {
-    btn.onclick = () => {
-      const ar = btn.dataset.ar;
-      applyPlayerAspectRatio(ar);
-      const label = ar === '21-9' ? '21:9 (Cinematic)' : ar === 'fill' ? 'Fill Screen' : ar === 'zoom' ? 'Zoom (Crop Bars)' : ar.replace('-', ':');
-      showToast(`Aspect Ratio: ${label}`);
-    };
-  });
+export function setupInPlayerControls() {
+  const arBtn = document.getElementById('btn-inplayer-ar');
+  const arLabel = document.getElementById('inplayer-ar-label');
+  const brightBtn = document.getElementById('btn-inplayer-bright');
+  const brightMenu = document.getElementById('inplayer-bright-menu');
+  const brightSlider = document.getElementById('inplayer-brightness-slider');
+  const overlay = document.getElementById('player-invideo-overlay');
 
-  // 2. Brightness Slider & Presets
-  const brightSlider = document.getElementById('player-brightness-slider');
+  // 1. Aspect Ratio Cycling (16:9 -> 21:9 -> 4:3 -> Fill)
+  const ratios = ['16-9', '21-9', '4-3', 'fill'];
+  if (arBtn) {
+    arBtn.onclick = (e) => {
+      e.stopPropagation();
+      const currentIdx = ratios.indexOf(state.aspectRatio || '16-9');
+      const nextRatio = ratios[(currentIdx + 1) % ratios.length];
+      applyPlayerAspectRatio(nextRatio);
+      const displayLabel = nextRatio === 'fill' ? 'Fill' : nextRatio.replace('-', ':');
+      if (arLabel) arLabel.textContent = displayLabel;
+      showToast(`📐 Aspect Ratio: ${displayLabel}`);
+    };
+  }
+
+  // 2. Brightness Toggle & Slider
+  if (brightBtn) {
+    brightBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (brightMenu) {
+        const isHidden = brightMenu.style.display === 'none';
+        brightMenu.style.display = isHidden ? 'flex' : 'none';
+        if (overlay) overlay.classList.toggle('active', isHidden);
+      }
+    };
+  }
+
   if (brightSlider) {
     brightSlider.oninput = (e) => {
       applyPlayerBrightness(e.target.value);
     };
   }
-  document.querySelectorAll('[data-preset-brightness]').forEach(btn => {
-    btn.onclick = () => {
-      const val = parseInt(btn.dataset.presetBrightness, 10);
+
+  document.querySelectorAll('#inplayer-bright-menu .bright-quick-presets button').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const val = parseInt(btn.dataset.val, 10);
       applyPlayerBrightness(val);
-      showToast(`☀️ Brightness: ${val}%`);
+      if (brightMenu) brightMenu.style.display = 'none';
+      if (overlay) overlay.classList.remove('active');
     };
   });
 
-  // 3. Audio Boost Slider & Presets
-  const volSlider = document.getElementById('player-volume-slider');
-  if (volSlider) {
-    volSlider.oninput = (e) => {
-      applyPlayerVolumeBoost(e.target.value);
-    };
-  }
-  document.querySelectorAll('[data-preset-volume]').forEach(btn => {
-    btn.onclick = () => {
-      const val = parseInt(btn.dataset.presetVolume, 10);
-      applyPlayerVolumeBoost(val);
-      if (val > 100) {
-        showToast(`🔊 Audio Boosted to ${val}%`);
-      } else {
-        showToast(`🔊 Audio set to ${val}%`);
-      }
-    };
+  document.addEventListener('click', (e) => {
+    if (brightMenu && !e.target.closest('.invideo-brightness-control')) {
+      brightMenu.style.display = 'none';
+      if (overlay) overlay.classList.remove('active');
+    }
   });
 
-  // 4. Multi-Language Dubbing (NetMirror / MovieBox style)
-  const dubPills = document.querySelectorAll('#player-dub-list .dub-pill');
-  dubPills.forEach(pill => {
-    pill.onclick = () => {
-      dubPills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      const lang = pill.dataset.lang;
-      state.activeDubLang = lang;
-
-      function syncServerBtns(serverType) {
-        document.querySelectorAll('.source-btn').forEach(btn => {
-          btn.classList.toggle('active', btn.dataset.server === serverType);
-        });
-      }
-
-      if (lang === 'hi') {
-        state.activeSourceType = 'html5';
-        syncServerBtns('html5');
-        mountVideoPlayer(details, 'html5', state.currentSeason || 1, state.currentEpisode || 1);
-        showToast('🇮🇳 Switched to Hindi Dubbed stream on Server 2');
-      } else if (lang === 'en') {
-        state.activeSourceType = 'vidlink';
-        syncServerBtns('vidlink');
-        mountVideoPlayer(details, 'vidlink', state.currentSeason || 1, state.currentEpisode || 1);
-        showToast('🇺🇸 Switched to English stream on Server 1');
-      } else if (lang === 'ja') {
-        state.activeSourceType = 'smashy';
-        syncServerBtns('smashy');
-        mountVideoPlayer(details, 'smashy', state.currentSeason || 1, state.currentEpisode || 1);
-        showToast('🇯🇵 Switched to Original Japanese stream on Server 3');
-      } else {
-        state.activeSourceType = 'vidsrc';
-        syncServerBtns('vidsrc');
-        mountVideoPlayer(details, 'vidsrc', state.currentSeason || 1, state.currentEpisode || 1);
-        showToast('✨ Multi-Audio / Dual Audio Stream activated');
-      }
-    };
-  });
-
-  // 5. Mobile Touch Gestures on #cinema-screen (Swipe HUD)
+  // 3. Mobile Touch Gestures on #cinema-screen (Vertical Swipe for Brightness)
   const screen = document.getElementById('cinema-screen');
   if (screen && !screen._gestureAttached) {
     screen._gestureAttached = true;
-    let touchStartX = 0;
     let touchStartY = 0;
     let isAdjusting = false;
-    let gestureType = ''; // 'brightness' or 'volume'
 
     screen.addEventListener('touchstart', (e) => {
       if (e.touches.length === 1) {
-        const touch = e.touches[0];
-        const rect = screen.getBoundingClientRect();
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        const relativeX = touchStartX - rect.left;
-        gestureType = relativeX < rect.width / 2 ? 'brightness' : 'volume';
+        touchStartY = e.touches[0].clientY;
         isAdjusting = true;
       }
     }, { passive: true });
 
     screen.addEventListener('touchmove', (e) => {
       if (!isAdjusting || e.touches.length !== 1) return;
-      const touch = e.touches[0];
-      const deltaY = touchStartY - touch.clientY;
+      const deltaY = touchStartY - e.touches[0].clientY; // swipe up = increase brightness
       if (Math.abs(deltaY) > 8) {
         const step = Math.round(deltaY * 0.4);
-        if (gestureType === 'brightness') {
-          const newBright = Math.min(150, Math.max(30, (state.brightness || 100) + step));
-          applyPlayerBrightness(newBright);
-          showPlayerGestureHud('☀️', `${newBright}%`);
-        } else {
-          const newVol = Math.min(200, Math.max(50, (state.volumeBoost || 100) + step));
-          applyPlayerVolumeBoost(newVol);
-          showPlayerGestureHud('🔊', `${newVol}%`);
-        }
-        touchStartY = touch.clientY;
+        const newBright = Math.min(150, Math.max(30, (state.brightness || 100) + step));
+        applyPlayerBrightness(newBright);
+        showPlayerGestureHud('☀️', `${newBright}%`);
+        touchStartY = e.touches[0].clientY;
       }
     }, { passive: true });
 
