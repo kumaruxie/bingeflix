@@ -28,6 +28,9 @@ capacitor.config.json.timestamp-*
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Backend scratch / local server
+backend/
 *.suo
 *.ntvs*
 *.njsproj

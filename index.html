@@ -326,20 +326,20 @@
             <!-- Stream Server Switcher -->
             <div class="player-source-bar">
               <div class="source-buttons" id="source-buttons-container">
-                <button class="source-btn active" data-server="vidlink" id="btn-src-vidlink" title="Server 1 - VidLink">
+                <button class="source-btn active" data-server="vidlink" id="btn-src-vidlink" title="Server 1 - VidLink (Instant Ultra HD)">
                   <span class="src-icon">⚡</span> Server 1 (VidLink)
                 </button>
-                <button class="source-btn" data-server="vidsrc" id="btn-src-vidsrc" title="Server 2 - VidSrc PM">
-                  <span class="src-icon">👑</span> Server 2 (VidSrc PM)
+                <button class="source-btn" data-server="html5" id="btn-src-html5" title="Server 2 - MultiEmbed (Hindi Dubbed & Multi-Audio)">
+                  <span class="src-icon">👑</span> Server 2 (MultiEmbed)
                 </button>
-                <button class="source-btn" data-server="smashy" id="btn-src-smashy" title="Server 3 - SmashyStream">
-                  <span class="src-icon">🍥</span> Server 3 (SmashyStream)
+                <button class="source-btn" data-server="smashy" id="btn-src-smashy" title="Server 3 - AutoEmbed (Anime Sub & Dub / Multi-Server)">
+                  <span class="src-icon">🍥</span> Server 3 (AutoEmbed)
                 </button>
-                <button class="source-btn" data-server="2embed" id="btn-src-2embed" title="Server 4 - 2Embed">
-                  <span class="src-icon">📺</span> Server 4 (2Embed)
+                <button class="source-btn" data-server="vidsrc" id="btn-src-vidsrc" title="Server 4 - VidSrc PM (4K Ultra)">
+                  <span class="src-icon">🌟</span> Server 4 (VidSrc PM)
                 </button>
-                <button class="source-btn" data-server="html5" id="btn-src-html5" title="Server 5 - MultiEmbed VIP (Multi-Audio & Fast Stream)">
-                  <span class="src-icon">👑</span> Server 5 (MultiEmbed)
+                <button class="source-btn" data-server="2embed" id="btn-src-2embed" title="Server 5 - 2Embed (Cartoons & Archives)">
+                  <span class="src-icon">📺</span> Server 5 (2Embed)
                 </button>
                 <button class="source-btn" data-server="trailer" id="btn-src-trailer" title="Official HD Trailer">
                   <span class="src-icon">🎞️</span> Trailer
@@ -355,16 +355,14 @@
               </div>
             </div>
 
-            <!-- Dynamic Audio & Language Status Bar (Fetched from TMDB API) -->
-            <div class="player-audio-control-bar">
-              <div class="audio-control-left">
-                <span class="audio-bar-title">Audio Track:</span>
-                <div class="audio-lang-pills" id="audio-lang-pills"></div>
+            <!-- In-Player Audio & Caption Size Settings Tip Bar -->
+            <div class="player-tip-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.65rem 1.2rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-glass); border-radius: 10px; margin-top: 0.75rem; font-size: 0.83rem; color: var(--text-secondary); flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="color: var(--accent-red); font-size: 1.1rem;">⚙️</span>
+                <span><strong>In-Video Controls:</strong> Click <strong>⚙️ Settings</strong> inside the video player to customize <strong>Caption Size (50% – 200%)</strong> & switch <strong>Audio Tracks</strong> directly.</span>
               </div>
-              <div class="audio-control-right" id="audio-server-hint">
-                <span style="font-size: 0.82rem; color: #94a3b8;">
-                  For Hindi audio, click <strong style="color: #fff;">🇮🇳 Hindi Dubbed</strong> or <strong style="color: #f59e0b;">🟧 Open in VLC</strong>
-                </span>
+              <div style="display: flex; align-items: center; gap: 0.4rem; color: #94a3b8; font-size: 0.8rem;">
+                <span>💬 Built-in CC Subtitles & Audio</span>
               </div>
             </div>
 

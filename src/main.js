@@ -1181,22 +1181,16 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     (!isAnime && details.genre_ids && (details.genre_ids.includes(16) || details.genre_ids.includes(10762)))
   );
 
-  // Auto-Select Best Server for Content Type (Movies vs Anime vs Cartoons)
-  if (isAnime) {
-    state.activeSourceType = 'smashy'; // SmashyStream is best for Anime
-  } else if (isCartoon) {
-    state.activeSourceType = '2embed'; // 2Embed is best for Cartoons & Archives
-  } else {
-    state.activeSourceType = 'vidlink'; // VidLink is best for Movies & Series
-  }
+  // Default to Server 1 (VidLink) universally for all genres; let users switch manually
+  state.activeSourceType = 'vidlink';
 
-  // Stream Switcher (Server 1-4 + HTML5 Direct + Trailer)
+  // Stream Switcher (Server 1-5 + Trailer)
   const serverButtons = [
     { btn: document.getElementById('btn-src-vidlink'), type: 'vidlink' },
-    { btn: document.getElementById('btn-src-vidsrc'), type: 'vidsrc' },
-    { btn: document.getElementById('btn-src-smashy'), type: 'smashy' },
-    { btn: document.getElementById('btn-src-2embed'), type: '2embed' },
     { btn: document.getElementById('btn-src-html5'), type: 'html5' },
+    { btn: document.getElementById('btn-src-smashy'), type: 'smashy' },
+    { btn: document.getElementById('btn-src-vidsrc'), type: 'vidsrc' },
+    { btn: document.getElementById('btn-src-2embed'), type: '2embed' },
     { btn: document.getElementById('btn-src-trailer'), type: 'trailer' },
   ];
 
@@ -1208,12 +1202,8 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       btn.classList.add('active');
       state.activeSourceType = type;
       mountVideoPlayer(details, type, state.currentSeason || 1, state.currentEpisode || 1);
-      setupAudioLanguageSelector(details, isTv);
     };
   });
-
-  // Setup Interactive Language & Audio Pills Switcher
-  setupAudioLanguageSelector(details, isTv);
 
   // Mount Video Player
   mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
@@ -1448,12 +1438,12 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
 
   } else if (type === 'smashy') {
     // ---------------------------------------------------------------
-    // 🍥 Server 3: SmashyStream (Best for Anime & Multi-Sub)
+    // 🍥 Server 3: AutoEmbed VIP (Fast Multi-Server & Reliable HD)
     // ---------------------------------------------------------------
-    badgeLabel = `🍥 Server 3 (SmashyStream) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server'}`;
+    badgeLabel = `🍥 Server 3 (AutoEmbed) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server'}`;
     streamUrl = isTv 
-      ? `https://player.smashystream.com/tv/${item.id}?s=${season}&e=${episode}`
-      : `https://player.smashystream.com/movie/${item.id}`;
+      ? `https://autoembed.co/tv/tmdb/${item.id}-${season}-${episode}`
+      : `https://autoembed.co/movie/tmdb/${item.id}`;
 
   } else if (type === '2embed') {
     // ---------------------------------------------------------------
@@ -1529,7 +1519,6 @@ function stopVideoPlayback() {
     clearInterval(torrentStatusTimer);
     torrentStatusTimer = null;
   }
-  fetch('/api/torrent/stop', { method: 'POST' }).catch(() => {});
   const vlcBtn = document.getElementById('player-vlc-btn');
   if (vlcBtn) vlcBtn.style.display = 'none';
   const cinemaScreen = document.getElementById('cinema-screen');
