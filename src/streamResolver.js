@@ -1,14 +1,19 @@
 // ==========================================================================
-// AXON OTT - Stream Source Resolver Engine
-// Connects to Dedicated Backend Stream Engine (Mux, Cloudflare Stream, Direct HLS)
-// with fallback to Local Torrent Bridge & Verified HLS Master Manifests
+// AXON OTT - Stream Source Resolver Engine (Stremio + Debrid Powered)
+// Queries Torrentio with Real-Debrid / Torbox cloud acceleration
+// for instant 4K, true multi-audio playback with zero buffering.
 // ==========================================================================
 
-// In-Memory Stream Cache
+import { getDebridConfig } from './debridModal.js';
+
 const STREAM_CACHE = new Map();
 
+const BACKEND_BASE = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+  ? 'http://localhost:5000'
+  : '';
+
 /**
- * Resolves direct multi-track HLS stream for Native OTT Player
+ * Resolves direct multi-track stream for Native OTT Player
  * @param {Object} item - TMDB movie/show details
  * @param {boolean} isTv - Whether series or movie
  * @param {number} season - Season number
@@ -16,84 +21,150 @@ const STREAM_CACHE = new Map();
  * @param {boolean} preferHindi - Prefer Hindi audio track if available
  * @returns {Promise<Object|null>} streamConfig containing url, audioTracks, subtitles, resolutions
  */
-export async function resolveDirectStream(item, isTv = false, season = 1, episode = 1, preferHindi = false) {
+export async function resolveDirectStream(item, isTv = false, season = 1, episode = 1, preferHindi = false, streamIndex = null) {
   if (!item || !item.id) return null;
 
-  const cacheKey = `${item.id}-${season}-${episode}-${preferHindi}`;
+  const { provider: debridProvider, key: debridKey, isConfigured } = getDebridConfig();
+  const cacheKey = `${item.id}-${season}-${episode}-${preferHindi}-${streamIndex ?? 'auto'}-${isConfigured ? debridKey.slice(0, 5) : 'free'}`;
+
   if (STREAM_CACHE.has(cacheKey)) {
     return STREAM_CACHE.get(cacheKey);
   }
 
   const mediaType = isTv ? 'tv' : 'movie';
+  const queryParams = new URLSearchParams({
+    tmdbId: String(item.id),
+    type: mediaType,
+    season: String(season),
+    episode: String(episode),
+    preferHindi: String(preferHindi)
+  });
 
-  // STEP 1: Query Dedicated AXON Backend Stream Engine (/api/streams/:tmdbId)
-  try {
-    const backendRes = await fetch(`/api/streams/${item.id}?type=${mediaType}&season=${season}&episode=${episode}`);
-    if (backendRes.ok) {
-      const data = await backendRes.json();
-      if (data.success && data.streamUrl) {
-        let selectedAudioTracks = data.audioTracks || [];
+  if (streamIndex !== null && streamIndex !== undefined) {
+    queryParams.append('streamIndex', String(streamIndex));
+  }
 
-        // If user prefers Hindi and Hindi is present, mark it as default
-        if (preferHindi && selectedAudioTracks.length > 0) {
-          selectedAudioTracks = selectedAudioTracks.map(t => ({
-            ...t,
-            default: Boolean(t.lang === 'hi' || (t.label && t.label.toLowerCase().includes('hindi')))
-          }));
+  if (isConfigured) {
+    queryParams.append('debridProvider', debridProvider);
+    queryParams.append('debridKey', debridKey);
+  }
+
+  // STEP 1: Query Dedicated AXON Torrentio + Debrid Engine (/api/torrent/resolve)
+  const apiUrls = [
+    `${BACKEND_BASE}/api/torrent/resolve?${queryParams.toString()}`,
+    `/api/torrent/resolve?${queryParams.toString()}`
+  ];
+
+  for (const apiUrl of apiUrls) {
+    try {
+      const res = await fetch(apiUrl, { signal: AbortSignal.timeout(10000) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.streamUrl) {
+          const basePrefix = apiUrl.startsWith('http') ? BACKEND_BASE : '';
+          const fullStreamUrl = data.streamUrl.startsWith('http')
+            ? data.streamUrl
+            : `${basePrefix}${data.streamUrl}`;
+
+          const config = {
+            url: fullStreamUrl,
+            title: data.title || item.title || item.name || 'AXON Cinema Stream',
+            provider: data.provider || (data.isDebrid ? 'debrid' : 'torrent_bridge'),
+            tmdbId: item.id,
+            imdbId: data.imdbId,
+            mediaType,
+            season,
+            episode,
+            isDebrid: Boolean(data.isDebrid),
+            requiresDebrid: Boolean(data.requiresDebrid),
+            hasHindi: Boolean(data.hasHindi),
+            quality: data.quality || '1080p FHD',
+            seeds: data.seeds,
+            size: data.size,
+            audioTracks: data.audioTracks || [
+              { id: 'hi', lang: 'hi', label: 'Hindi Dubbed 🇮🇳', default: data.hasHindi },
+              { id: 'en', lang: 'en', label: 'English / Original', default: !data.hasHindi }
+            ],
+            subtitles: data.subtitles || [],
+            resolutions: data.qualities || ['4K Ultra HD', '1080p FHD', '720p HD'],
+            streams: data.streams || [],
+            totalSources: data.totalSources || 0,
+            hindiSources: data.hindiSources || 0
+          };
+
+          STREAM_CACHE.set(cacheKey, config);
+          return config;
+        } else if (data.success && (data.requiresDebrid || !data.streamUrl)) {
+          return {
+            requiresDebrid: true,
+            isDebrid: false,
+            totalSources: data.totalSources || 0,
+            hindiSources: data.hindiSources || 0,
+            streams: data.streams || [],
+            imdbId: data.imdbId,
+            title: item.title || item.name
+          };
         }
+      }
+    } catch (err) {
+      console.warn('[StreamResolver] Debrid/Torrent query notice:', err.message);
+    }
+  }
 
+  // STEP 2: Fallback to Universal Streams endpoint
+  try {
+    const fallbackRes = await fetch(`${BACKEND_BASE}/api/streams/${item.id}?type=${mediaType}&season=${season}&episode=${episode}`);
+    if (fallbackRes.ok) {
+      const data = await fallbackRes.json();
+      if (data.success && data.streamUrl) {
+        const fullStreamUrl = data.streamUrl.startsWith('http') ? data.streamUrl : `${BACKEND_BASE}${data.streamUrl}`;
         const config = {
-          url: data.streamUrl,
+          url: fullStreamUrl,
           title: item.title || item.name || data.title || 'AXON Cinema Stream',
-          provider: data.provider || 'direct_hls',
-          audioTracks: selectedAudioTracks,
-          subtitles: data.subtitles || [],
-          resolutions: data.resolutions || ['Auto', '1080p', '720p', '480p', '360p'],
-          isDemoFallback: Boolean(data.isDemoFallback)
+          provider: data.provider || 'universal',
+          tmdbId: item.id,
+          mediaType,
+          season,
+          episode,
+          audioTracks: data.audioTracks || [{ id: 'orig', lang: 'en', label: 'Original Audio', default: true }],
+          subtitles: [],
+          resolutions: ['1080p', '720p', '480p']
         };
-
         STREAM_CACHE.set(cacheKey, config);
         return config;
       }
     }
-  } catch (err) {
-    console.warn('[StreamResolver] Backend stream query notice:', err.message);
-  }
+  } catch (e) {}
 
-  // STEP 2: Secondary Fallback to Torrent Bridge if IMDB ID exists
-  const imdbId = (item.external_ids && item.external_ids.imdb_id) || item.imdb_id;
-  if (imdbId) {
-    try {
-      const res = await fetch(`/api/torrent/sources?imdbId=${imdbId}&type=${isTv ? 'series' : 'movie'}&season=${season}&episode=${episode}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.streams && data.streams.length > 0) {
-          const targetStream = (preferHindi && data.hindiStreams && data.hindiStreams.length > 0)
-            ? data.hindiStreams[0]
-            : (data.hindiStreams && data.hindiStreams[0]) || data.streams[0];
-
-          if (targetStream) {
-            const config = {
-              url: `/api/torrent/stream?infoHash=${targetStream.infoHash}&fileIdx=${targetStream.fileIdx}`,
-              title: item.title || item.name || 'AXON Cinema Stream',
-              provider: 'torrent_bridge',
-              audioTracks: [
-                { id: 'hi', lang: 'hi', label: 'Hindi Dubbed', default: targetStream.hasHindi },
-                { id: 'en', lang: 'en', label: 'English / Original', default: !targetStream.hasHindi }
-              ],
-              subtitles: [],
-              resolutions: ['Original', '1080p', '720p']
-            };
-            STREAM_CACHE.set(cacheKey, config);
-            return config;
-          }
-        }
-      }
-    } catch (torrentErr) {
-      console.warn('[StreamResolver] Torrent fallback notice:', torrentErr.message);
-    }
-  }
-
-  // If no Mux asset and no torrent stream, return null so player uses real streaming server
   return null;
+}
+
+/**
+ * Fetch all available torrent / Debrid releases for a movie or TV episode
+ */
+export async function fetchTorrentSources(item, isTv = false, season = 1, episode = 1) {
+  if (!item || !item.id) return [];
+  const { provider: debridProvider, key: debridKey, isConfigured } = getDebridConfig();
+  const mediaType = isTv ? 'series' : 'movie';
+  const queryParams = new URLSearchParams({
+    tmdbId: String(item.id),
+    type: mediaType,
+    season: String(season),
+    episode: String(episode)
+  });
+  if (isConfigured) {
+    queryParams.append('debridProvider', debridProvider);
+    queryParams.append('debridKey', debridKey);
+  }
+
+  try {
+    const res = await fetch(`${BACKEND_BASE}/api/torrent/sources?${queryParams.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.streams || [];
+    }
+  } catch (e) {
+    console.warn('Failed to fetch torrent releases:', e);
+  }
+  return [];
 }

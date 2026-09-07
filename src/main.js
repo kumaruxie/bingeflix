@@ -12,8 +12,7 @@ import {
   INITIAL_SOUTH 
 } from './catalogData.js';
 
-import { initNativePlayer, switchNativeAudioTrack, destroyNativePlayer } from './nativePlayer.js';
-import { resolveDirectStream } from './streamResolver.js';
+import { destroyNativePlayer } from './nativePlayer.js';
 
 const TMDB_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) || 'df1c541385e699bbed7ffd32934162da';
 const TMDB_BASE_URL = 'https://api.tmdb.org/3';
@@ -397,9 +396,9 @@ async function loadAllSections() {
     fetchTMDB('/discover/movie', { with_original_language: 'hi', sort_by: 'popularity.desc' }),
     fetchTMDB('/discover/movie', { with_original_language: 'en', sort_by: 'popularity.desc' }),
     fetchTMDB('/discover/movie', { with_original_language: 'te|ta|ml|kn', sort_by: 'popularity.desc' }),
-    fetchTMDB('/discover/tv', { with_original_language: 'hi', sort_by: 'popularity.desc' }),
-    fetchTMDB('/discover/tv', { with_genres: '16', with_original_language: 'ja', sort_by: 'popularity.desc' }),
-    fetchTMDB('/discover/tv', { with_genres: '16,10762', sort_by: 'popularity.desc' }),
+    fetchTMDB('/discover/tv', { without_genres: '16', with_genres: '18,10765,80', sort_by: 'popularity.desc' }),
+    fetchTMDB('/discover/tv', { with_genres: '16', with_origin_country: 'JP', sort_by: 'popularity.desc' }),
+    fetchTMDB('/discover/tv', { with_genres: '16,10762', without_origin_country: 'JP', sort_by: 'popularity.desc' }),
   ]);
 
   if (bollywoodData && bollywoodData.results) {
@@ -483,6 +482,7 @@ function initHeroSpotlight() {
   for (let i = 0; i < maxSlides; i++) {
     const dot = document.createElement('div');
     dot.className = `indicator-dot ${i === 0 ? 'active' : ''}`;
+    dot.title = `Spotlight Slide ${i + 1}`;
     dot.addEventListener('click', () => {
       setHeroSlide(i);
       resetHeroTimer();
@@ -492,6 +492,12 @@ function initHeroSpotlight() {
 
   setHeroSlide(0);
   startHeroTimer();
+
+  const spotlightSection = document.getElementById('hero-spotlight');
+  if (spotlightSection) {
+    spotlightSection.onmouseenter = () => clearInterval(state.heroTimer);
+    spotlightSection.onmouseleave = () => resetHeroTimer();
+  }
 
   document.getElementById('hero-prev').onclick = () => {
     let nextIdx = state.heroIndex - 1;
@@ -517,11 +523,21 @@ function setHeroSlide(index) {
     ? `${IMG_BASE_URL}/original${movie.backdrop_path}`
     : `${IMG_BASE_URL}/original${movie.poster_path}`;
 
-  heroBackdrop.style.backgroundImage = `url('${backdropUrl}')`;
+  // Smooth Crossfade with Preload
+  if (heroBackdrop) {
+    heroBackdrop.style.opacity = '0.35';
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      heroBackdrop.style.backgroundImage = `url('${backdropUrl}')`;
+      heroBackdrop.style.opacity = '1';
+    };
+    tempImg.src = backdropUrl;
+  }
+
   document.getElementById('hero-title').textContent = movie.title || movie.name;
   document.getElementById('hero-overview').textContent = movie.overview || 'No overview available.';
   document.getElementById('hero-rating').textContent = `★ ${movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A'}`;
-  document.getElementById('hero-year').textContent = (movie.release_date || '').split('-')[0] || '2026';
+  document.getElementById('hero-year').textContent = (movie.release_date || movie.first_air_date || '').split('-')[0] || '2026';
 
   const genreNames = (movie.genre_ids || [])
     .map(id => state.genres[id])
@@ -573,6 +589,7 @@ function updateHeroWatchlistBtn(btn, inList) {
 }
 
 function startHeroTimer() {
+  clearInterval(state.heroTimer);
   state.heroTimer = setInterval(() => {
     const maxSlides = Math.min(5, state.trending.length);
     const nextIdx = (state.heroIndex + 1) % maxSlides;
@@ -614,12 +631,13 @@ function renderMovieTrack(containerId, movies) {
   card.innerHTML = `
     <div class="card-poster-wrapper">
       ${isHistory ? `<button class="card-btn-delete-history" title="Delete from History" data-movie-id="${movie.id}">✕</button>` : ''}
+      <span class="card-type-tag ${isTv ? 'tag-series' : ''}">${isTv ? '📺 Series' : '4K UHD'}</span>
       <img class="card-poster" src="${posterUrl}" alt="${title}" loading="lazy" />
       <span class="card-rating-tag">★ ${rating}</span>
       <div class="card-overlay">
         <div class="card-actions">
           <button class="card-btn card-btn-play" title="Play ${isTv ? 'Series' : 'Movie'}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="6 4 20 12 6 20 6 4" />
             </svg>
           </button>
@@ -628,7 +646,7 @@ function renderMovieTrack(containerId, movies) {
           </button>
         </div>
         <div class="card-title">${title}</div>
-        <div class="card-year">${isTv ? '📺 Series • ' : ''}${year}</div>
+        <div class="card-year">${isTv ? '📺 Series • ' : '🎬 Cinema • '}${year}</div>
       </div>
     </div>
   `;
@@ -944,6 +962,64 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   let activeRangeIndex = 0;
   let currentSeasonEpisodes = [];
 
+  const playerNextEpBtn = document.getElementById('player-next-ep-btn');
+  const quickNextEpBtn = document.getElementById('btn-next-ep-quick');
+
+  function updateNextEpButtonState() {
+    if (!isTv) {
+      if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
+      if (quickNextEpBtn) quickNextEpBtn.style.display = 'none';
+      return;
+    }
+    const currentIdx = currentSeasonEpisodes.findIndex(e => e.episode_number === state.currentEpisode || e.relative_number === state.currentEpisode);
+    const hasNextInSeason = currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1;
+    const hasNextSeason = seasonSelect && seasonSelect.selectedIndex < seasonSelect.options.length - 1;
+
+    if (hasNextInSeason || hasNextSeason) {
+      const nextEpObj = hasNextInSeason ? currentSeasonEpisodes[currentIdx + 1] : null;
+      const nextEpNum = nextEpObj ? (nextEpObj.relative_number || nextEpObj.episode_number) : 1;
+      if (playerNextEpBtn) {
+        playerNextEpBtn.style.display = 'inline-flex';
+        playerNextEpBtn.innerHTML = `<span>Next Ep (E${nextEpNum}) ›</span>`;
+      }
+      if (quickNextEpBtn) {
+        quickNextEpBtn.style.display = 'inline-flex';
+        quickNextEpBtn.textContent = `Next Ep (E${nextEpNum}) ›`;
+      }
+    } else {
+      if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
+      if (quickNextEpBtn) quickNextEpBtn.style.display = 'none';
+    }
+  }
+
+  function advanceToNextEpisode() {
+    if (!isTv) return;
+    const currentIdx = currentSeasonEpisodes.findIndex(e => e.episode_number === state.currentEpisode || e.relative_number === state.currentEpisode);
+    const nextEpObj = currentIdx !== -1 && currentSeasonEpisodes[currentIdx + 1] ? currentSeasonEpisodes[currentIdx + 1] : null;
+
+    if (nextEpObj) {
+      state.currentEpisode = nextEpObj.relative_number || nextEpObj.episode_number;
+      episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+      window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
+      const playSeason = nextEpObj.season_number || state.currentSeason;
+      mountVideoPlayer(details, state.activeSourceType, playSeason, nextEpObj.episode_number);
+      renderCurrentEpisodesOrientation();
+      updateNextEpButtonState();
+      showToast(`Playing Next: S${state.currentSeason} : E${state.currentEpisode} - ${nextEpObj.name}`);
+    } else {
+      if (seasonSelect && seasonSelect.selectedIndex < seasonSelect.options.length - 1) {
+        seasonSelect.selectedIndex += 1;
+        seasonSelect.dispatchEvent(new Event('change'));
+        showToast('Auto-advanced to next season! 🎉');
+      } else {
+        showToast('You have reached the final episode! 🌟');
+      }
+    }
+  }
+
+  if (playerNextEpBtn) playerNextEpBtn.onclick = advanceToNextEpisode;
+  if (quickNextEpBtn) quickNextEpBtn.onclick = advanceToNextEpisode;
+
   if (btnListView && btnGridView) {
     btnListView.onclick = () => {
       currentViewMode = 'list';
@@ -960,6 +1036,37 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       episodesTrack.className = 'episodes-cards-track mode-grid';
       renderCurrentEpisodesOrientation();
     };
+  }
+
+  function setupEpisodeBatchTabs(episodesList) {
+    if (!rangeTabsContainer) return;
+    rangeTabsContainer.innerHTML = '';
+    if (episodesList.length > 20) {
+      rangeTabsContainer.style.display = 'flex';
+      activeRangeIndex = 1;
+
+      const batchSize = 25;
+      const totalBatches = Math.min(Math.ceil(episodesList.length / batchSize), 20);
+
+      for (let b = 0; b < totalBatches; b++) {
+        const startEp = b * batchSize + 1;
+        const endEp = Math.min((b + 1) * batchSize, episodesList.length);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `range-tab-btn ${b === 0 ? 'active' : ''}`;
+        btn.textContent = `Eps ${startEp} - ${endEp}`;
+        btn.onclick = () => {
+          activeRangeIndex = b + 1;
+          document.querySelectorAll('.range-tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          renderCurrentEpisodesOrientation();
+        };
+        rangeTabsContainer.appendChild(btn);
+      }
+    } else {
+      rangeTabsContainer.style.display = 'none';
+      activeRangeIndex = 0;
+    }
   }
 
   function renderCurrentEpisodesOrientation() {
@@ -979,7 +1086,8 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     }
 
     displayList.forEach(ep => {
-      const isCurrent = ep.episode_number === state.currentEpisode;
+      const isCurrent = ep.episode_number === state.currentEpisode || ep.relative_number === state.currentEpisode;
+      const epDisplayNum = ep.relative_number || ep.episode_number;
       const thumb = ep.still_path 
         ? `${IMG_BASE_URL}/w300${ep.still_path}`
         : (details.backdrop_path ? `${IMG_BASE_URL}/w300${details.backdrop_path}` : 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=300&q=80');
@@ -991,14 +1099,14 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         card.innerHTML = `
           <div class="ep-left-thumb">
             <img src="${thumb}" alt="${ep.name}" loading="lazy" />
-            <span class="ep-num-pill">EP ${ep.episode_number}</span>
+            <span class="ep-num-pill">EP ${epDisplayNum}</span>
             <div class="ep-play-overlay">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4" /></svg>
             </div>
           </div>
           <div class="ep-right-content">
             <div class="ep-title-row">
-              <span class="ep-number">${ep.episode_number}.</span>
+              <span class="ep-number">${epDisplayNum}.</span>
               <h4 class="ep-name">${ep.name}</h4>
               ${isCurrent ? '<span class="ep-playing-tag">▶ PLAYING</span>' : ''}
               <span class="ep-runtime-tag">${ep.runtime ? `${ep.runtime}m` : 'HD'}</span>
@@ -1007,6 +1115,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
               ${ep.air_date ? `<span>Aired: ${ep.air_date}</span>` : ''}
               <span>•</span>
               <span>★ ${ep.vote_average ? ep.vote_average.toFixed(1) : 'NR'}</span>
+              ${ep.relative_number && ep.relative_number !== ep.episode_number ? `<span>• (Total Ep #${ep.episode_number})</span>` : ''}
             </div>
             <p class="ep-overview-text">${ep.overview || 'Stream this episode in full HD with multi-audio and subtitles.'}</p>
           </div>
@@ -1015,11 +1124,14 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         card.addEventListener('click', () => {
           document.querySelectorAll('.episode-card-list, .episode-card-grid').forEach(c => c.classList.remove('active'));
           card.classList.add('active');
-          state.currentEpisode = ep.episode_number;
-          episodeBadge.textContent = `S${state.currentSeason} : E${ep.episode_number}`;
-          window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${ep.episode_number}`;
-          mountVideoPlayer(details, state.activeSourceType, state.currentSeason, ep.episode_number);
-          showToast(`Playing S${state.currentSeason} : E${ep.episode_number} - ${ep.name}`);
+          state.currentEpisode = epDisplayNum;
+          episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+          window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
+          const playSeason = ep.season_number || state.currentSeason;
+          mountVideoPlayer(details, state.activeSourceType, playSeason, ep.episode_number);
+          renderCurrentEpisodesOrientation();
+          updateNextEpButtonState();
+          showToast(`Playing S${state.currentSeason} : E${state.currentEpisode} - ${ep.name}`);
         });
 
         episodesTrack.appendChild(card);
@@ -1030,11 +1142,11 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         card.innerHTML = `
           <div class="ep-thumb-wrapper">
             <img src="${thumb}" alt="${ep.name}" loading="lazy" />
-            <span class="ep-num-pill">EP ${ep.episode_number}</span>
+            <span class="ep-num-pill">EP ${epDisplayNum}</span>
             <span class="ep-runtime-pill">${ep.runtime ? `${ep.runtime}m` : 'HD'}</span>
           </div>
           <div class="ep-grid-info">
-            <div class="ep-grid-title">${ep.episode_number}. ${ep.name}</div>
+            <div class="ep-grid-title">${epDisplayNum}. ${ep.name}</div>
             <div class="ep-grid-sub">${ep.air_date ? ep.air_date.split('-')[0] : ''} • ★ ${ep.vote_average ? ep.vote_average.toFixed(1) : 'NR'}</div>
           </div>
         `;
@@ -1042,11 +1154,14 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         card.addEventListener('click', () => {
           document.querySelectorAll('.episode-card-list, .episode-card-grid').forEach(c => c.classList.remove('active'));
           card.classList.add('active');
-          state.currentEpisode = ep.episode_number;
-          episodeBadge.textContent = `S${state.currentSeason} : E${ep.episode_number}`;
-          window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${ep.episode_number}`;
-          mountVideoPlayer(details, state.activeSourceType, state.currentSeason, ep.episode_number);
-          showToast(`Playing S${state.currentSeason} : E${ep.episode_number} - ${ep.name}`);
+          state.currentEpisode = epDisplayNum;
+          episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+          window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
+          const playSeason = ep.season_number || state.currentSeason;
+          mountVideoPlayer(details, state.activeSourceType, playSeason, ep.episode_number);
+          renderCurrentEpisodesOrientation();
+          updateNextEpButtonState();
+          showToast(`Playing S${state.currentSeason} : E${state.currentEpisode} - ${ep.name}`);
         });
 
         episodesTrack.appendChild(card);
@@ -1054,123 +1169,195 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     });
   }
 
-  if (isTv && details.seasons && details.seasons.length > 0) {
+  // ==========================================================================
+  // Universal Show & Episode Groups Logic (Auto-detects Anime, Web Series, etc.)
+  // ==========================================================================
+  if (isTv) {
     seriesControls.style.display = 'block';
-    seasonSelect.innerHTML = '';
+    seasonSelect.innerHTML = '<option value="">Loading seasons...</option>';
 
-    const validSeasons = details.seasons.filter(s => s.season_number > 0);
-    const seasonsList = validSeasons.length > 0 ? validSeasons : details.seasons;
+    // Optimization: check episode_groups if animation (genre 16) OR single long season (> 25 eps)
+    const hasAnimationGenre = details.genres && details.genres.some(g => g.id === 16);
+    const hasLongSingleSeason = (details.number_of_seasons === 1 && (details.number_of_episodes > 25 || !details.number_of_episodes));
+    const shouldCheckGroup = hasAnimationGenre || hasLongSingleSeason;
 
-    seasonsList.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.season_number;
-      opt.textContent = `${s.name || `Season ${s.season_number}`} (${s.episode_count || '?'} Eps)`;
-      seasonSelect.appendChild(opt);
-    });
+    let customEpisodeGroups = null;
 
-    state.currentSeason = targetSeason || seasonsList[0].season_number;
-    state.currentEpisode = targetEpisode || 1;
-    seasonSelect.value = state.currentSeason;
-    episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+    if (shouldCheckGroup) {
+      try {
+        const groupRes = await fetchTMDB(`/tv/${id}/episode_groups`);
+        if (groupRes && groupRes.results && groupRes.results.length > 0) {
+          // Find best season order / custom group (prefer type 6 or custom or name with "season"/"order"/"story")
+          const targetGroup = groupRes.results.find(g => g.type === 6 || (g.name && g.name.toLowerCase().includes('season')))
+            || groupRes.results.find(g => g.type !== 'original' && g.type !== 1)
+            || groupRes.results.find(g => g.name && (g.name.toLowerCase().includes('order') || g.name.toLowerCase().includes('arc')))
+            || groupRes.results[0];
 
-    async function loadSeasonEpisodes(seasonNum) {
-      episodesTrack.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading season episodes...</div>';
-      let sData = await fetchTMDB(`/tv/${id}/season/${seasonNum}`);
-
-      // Fallback if seasonNum failed (e.g. Shin-chan / Doraemon season numbering quirks)
-      if (!sData && details.seasons && details.seasons.length > 0) {
-        for (const s of details.seasons) {
-          if (s.season_number !== seasonNum && s.episode_count > 0) {
-            const altData = await fetchTMDB(`/tv/${id}/season/${s.season_number}`);
-            if (altData && altData.episodes && altData.episodes.length > 0) {
-              sData = altData;
-              state.currentSeason = s.season_number;
-              seasonSelect.value = s.season_number;
-              break;
+          if (targetGroup) {
+            const groupDetails = await fetchTMDB(`/tv/episode_group/${targetGroup.id}`);
+            const groupsList = groupDetails?.groups || groupDetails?.episode_groups;
+            if (groupsList && groupsList.length > 0) {
+              customEpisodeGroups = groupsList;
             }
           }
         }
+      } catch (err) {
+        console.warn('Episode group fetch fallback:', err);
       }
+    }
 
-      if (sData && sData.episodes && sData.episodes.length > 0) {
-        currentSeasonEpisodes = sData.episodes.length > 200 ? sData.episodes.slice(0, 200) : sData.episodes;
+    seasonSelect.innerHTML = '';
 
-        // Season Breakdown Overview & Meta
+    if (customEpisodeGroups && customEpisodeGroups.length > 0) {
+      // ✅ Custom Episode Groups (Anime, Firefly, Story Arc splits!)
+      customEpisodeGroups.forEach((grp, idx) => {
+        const opt = document.createElement('option');
+        opt.value = `group_${idx}`;
+        const epCount = grp.episodes ? grp.episodes.length : 0;
+        opt.textContent = `${grp.name || `Season ${idx + 1}`} (${epCount} Eps)`;
+        seasonSelect.appendChild(opt);
+      });
+
+      let activeGroupIndex = 0;
+      if (targetSeason) {
+        const foundIdx = customEpisodeGroups.findIndex(g => g.order === targetSeason || (g.name && g.name.toLowerCase().includes(`season ${targetSeason}`)));
+        if (foundIdx !== -1) activeGroupIndex = foundIdx;
+      }
+      seasonSelect.value = `group_${activeGroupIndex}`;
+
+      function loadGroupEpisodes(grpIdx) {
+        const grp = customEpisodeGroups[grpIdx];
+        if (!grp) return;
+
+        currentSeasonEpisodes = (grp.episodes || []).map((ep, idx) => ({
+          ...ep,
+          relative_number: ep.order !== undefined ? (ep.order + 1) : (idx + 1),
+          display_season: grp.order !== undefined ? grp.order : (grpIdx + 1)
+        }));
+
         if (seasonMetaBadge) {
-          const yearStr = sData.air_date ? sData.air_date.split('-')[0] : '';
-          seasonMetaBadge.textContent = `Season ${state.currentSeason} • ${currentSeasonEpisodes.length} Episodes ${yearStr ? `• ${yearStr}` : ''}`;
+          seasonMetaBadge.textContent = `${grp.name || `Season ${grpIdx + 1}`} • ${currentSeasonEpisodes.length} Episodes`;
         }
 
         if (seasonDesc) {
-          if (sData.overview) {
-            seasonDesc.innerHTML = `<strong>Season ${state.currentSeason} Storyline:</strong> ${sData.overview}`;
+          if (grp.description) {
+            seasonDesc.innerHTML = `<strong>${grp.name} Storyline:</strong> ${grp.description}`;
             seasonDesc.style.display = 'block';
           } else {
             seasonDesc.style.display = 'none';
           }
         }
 
-        // Setup Range Tabs for Anime & Long Series (> 20 episodes)
-        if (rangeTabsContainer) {
-          rangeTabsContainer.innerHTML = '';
-          if (currentSeasonEpisodes.length > 20) {
-            rangeTabsContainer.style.display = 'flex';
-            activeRangeIndex = 1; // Default to batch 1 (Eps 1-25) so huge shows like Shin-chan never freeze the DOM
+        setupEpisodeBatchTabs(currentSeasonEpisodes);
+        renderCurrentEpisodesOrientation();
+        updateNextEpButtonState();
+      }
 
-            const batchSize = 25;
-            const totalBatches = Math.min(Math.ceil(currentSeasonEpisodes.length / batchSize), 20);
+      seasonSelect.onchange = () => {
+        const selectedVal = seasonSelect.value;
+        const grpIdx = parseInt(selectedVal.replace('group_', ''), 10) || 0;
+        state.currentSeason = customEpisodeGroups[grpIdx]?.order || (grpIdx + 1);
+        state.currentEpisode = 1;
+        episodeBadge.textContent = `S${state.currentSeason} : E1`;
+        window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=1`;
+        loadGroupEpisodes(grpIdx);
+        const firstEp = customEpisodeGroups[grpIdx]?.episodes?.[0];
+        const playEp = firstEp?.episode_number || 1;
+        const playSeason = firstEp?.season_number || state.currentSeason;
+        mountVideoPlayer(details, state.activeSourceType, playSeason, playEp);
+      };
 
-            for (let b = 0; b < totalBatches; b++) {
-              const startEp = b * batchSize + 1;
-              const endEp = Math.min((b + 1) * batchSize, currentSeasonEpisodes.length);
-              const btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = `range-tab-btn ${b === 0 ? 'active' : ''}`;
-              btn.textContent = `Eps ${startEp} - ${endEp}`;
-              btn.onclick = () => {
-                activeRangeIndex = b + 1;
-                document.querySelectorAll('.range-tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                renderCurrentEpisodesOrientation();
-              };
-              rangeTabsContainer.appendChild(btn);
+      state.currentSeason = customEpisodeGroups[activeGroupIndex]?.order || (activeGroupIndex + 1);
+      state.currentEpisode = targetEpisode || 1;
+      episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+      loadGroupEpisodes(activeGroupIndex);
+
+    } else {
+      // ✅ Normal Web Series (Regular seasons: Breaking Bad, Stranger Things, Mirzapur, etc.)
+      const validSeasons = (details.seasons || []).filter(s => s.season_number > 0);
+      const seasonsList = validSeasons.length > 0 ? validSeasons : (details.seasons || [{ season_number: 1, name: 'Season 1', episode_count: 10 }]);
+
+      seasonsList.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.season_number;
+        opt.textContent = `${s.name || `Season ${s.season_number}`} (${s.episode_count || '?'} Eps)`;
+        seasonSelect.appendChild(opt);
+      });
+
+      state.currentSeason = targetSeason || seasonsList[0].season_number;
+      state.currentEpisode = targetEpisode || 1;
+      seasonSelect.value = state.currentSeason;
+      episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+
+      async function loadRegularSeasonEpisodes(seasonNum) {
+        episodesTrack.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading season episodes...</div>';
+        let sData = await fetchTMDB(`/tv/${id}/season/${seasonNum}`);
+
+        if (!sData && details.seasons && details.seasons.length > 0) {
+          for (const s of details.seasons) {
+            if (s.season_number !== seasonNum && s.episode_count > 0) {
+              const altData = await fetchTMDB(`/tv/${id}/season/${s.season_number}`);
+              if (altData && altData.episodes && altData.episodes.length > 0) {
+                sData = altData;
+                state.currentSeason = s.season_number;
+                seasonSelect.value = s.season_number;
+                break;
+              }
             }
-          } else {
-            rangeTabsContainer.style.display = 'none';
-            activeRangeIndex = 0;
           }
         }
 
-        renderCurrentEpisodesOrientation();
-      } else {
-        // Direct stream button if season detail isn't indexed
-        episodesTrack.innerHTML = `
-          <div style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
-            <p style="margin-bottom: 0.8rem; font-size: 0.95rem;">Stream episodes directly on Server 1 or 2:</p>
-            <button type="button" class="btn-cta btn-play" id="btn-stream-direct-ep">
-              ▶ Stream Episode ${state.currentEpisode || 1}
-            </button>
-          </div>
-        `;
-        const dirBtn = document.getElementById('btn-stream-direct-ep');
-        if (dirBtn) {
-          dirBtn.onclick = () => mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
+        if (sData && sData.episodes && sData.episodes.length > 0) {
+          currentSeasonEpisodes = sData.episodes.length > 200 ? sData.episodes.slice(0, 200) : sData.episodes;
+
+          if (seasonMetaBadge) {
+            const yearStr = sData.air_date ? sData.air_date.split('-')[0] : '';
+            seasonMetaBadge.textContent = `Season ${state.currentSeason} • ${currentSeasonEpisodes.length} Episodes ${yearStr ? `• ${yearStr}` : ''}`;
+          }
+
+          if (seasonDesc) {
+            if (sData.overview) {
+              seasonDesc.innerHTML = `<strong>Season ${state.currentSeason} Storyline:</strong> ${sData.overview}`;
+              seasonDesc.style.display = 'block';
+            } else {
+              seasonDesc.style.display = 'none';
+            }
+          }
+
+          setupEpisodeBatchTabs(currentSeasonEpisodes);
+          renderCurrentEpisodesOrientation();
+          updateNextEpButtonState();
+        } else {
+          episodesTrack.innerHTML = `
+            <div style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
+              <p style="margin-bottom: 0.8rem; font-size: 0.95rem;">Stream episodes directly on Server 1 or 2:</p>
+              <button type="button" class="btn-cta btn-play" id="btn-stream-direct-ep">
+                ▶ Stream Episode ${state.currentEpisode || 1}
+              </button>
+            </div>
+          `;
+          const dirBtn = document.getElementById('btn-stream-direct-ep');
+          if (dirBtn) {
+            dirBtn.onclick = () => mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
+          }
+          updateNextEpButtonState();
         }
       }
+
+      seasonSelect.onchange = () => {
+        state.currentSeason = parseInt(seasonSelect.value, 10);
+        state.currentEpisode = 1;
+        episodeBadge.textContent = `S${state.currentSeason} : E1`;
+        window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=1`;
+        loadRegularSeasonEpisodes(state.currentSeason);
+        mountVideoPlayer(details, state.activeSourceType, state.currentSeason, 1);
+      };
+
+      loadRegularSeasonEpisodes(state.currentSeason);
     }
-
-    seasonSelect.onchange = () => {
-      state.currentSeason = parseInt(seasonSelect.value, 10);
-      state.currentEpisode = 1;
-      episodeBadge.textContent = `S${state.currentSeason} : E1`;
-      window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=1`;
-      loadSeasonEpisodes(state.currentSeason);
-      mountVideoPlayer(details, state.activeSourceType, state.currentSeason, 1);
-    };
-
-    loadSeasonEpisodes(state.currentSeason);
   } else {
     seriesControls.style.display = 'none';
+    if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
   }
 
   // Auto-Select Best Player for Content Type (Movies vs Anime vs Cartoons)
@@ -1183,10 +1370,10 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     (!isAnime && details.genre_ids && (details.genre_ids.includes(16) || details.genre_ids.includes(10762)))
   );
 
-  // Default to Server 1 (VidLink) universally for all genres; let users switch manually
+  // Default to Server 1 (VidLink) for instant 0ms HD playback
   state.activeSourceType = 'vidlink';
 
-  // Stream Switcher (Server 1-5 + Trailer)
+  // Stream Switcher (5 Multi-CDN Servers + Trailer with Zero Ads & Zero Setup)
   const serverButtons = [
     { btn: document.getElementById('btn-src-vidlink'), type: 'vidlink' },
     { btn: document.getElementById('btn-src-html5'), type: 'html5' },
@@ -1401,11 +1588,12 @@ async function renderGenreTopShows(details, isTv) {
   }
 }
 
-// Stream Players (4 Tested, 100% Working Fast Players)
+// ==========================================================================
+// Stream Player Engine (5 Multi-CDN High-Speed Servers + Zero Ads)
+// ==========================================================================
 async function mountVideoPlayer(item, type, season = 1, episode = 1) {
   const cinemaScreen = document.getElementById('cinema-screen');
   const badge = document.getElementById('player-view-badge');
-  const vlcBtn = document.getElementById('player-vlc-btn');
   const isTv = Boolean(item.isTv || item.first_air_date || (item.seasons && item.seasons.length > 0));
 
   let streamUrl = '';
@@ -1413,11 +1601,6 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
 
   // Clean up native player before mounting
   destroyNativePlayer();
-
-  if (torrentStatusTimer) {
-    clearInterval(torrentStatusTimer);
-    torrentStatusTimer = null;
-  }
 
   if (type === 'vidlink') {
     // ---------------------------------------------------------------
@@ -1923,6 +2106,8 @@ function setupEventListeners() {
       switchView('watchlist');
     });
   }
+
+
 
   // Clear History Confirmation Modal
   const confirmClearModal = document.getElementById('confirm-clear-modal');

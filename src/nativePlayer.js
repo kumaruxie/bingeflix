@@ -123,9 +123,11 @@ export function initNativePlayer(container, streamConfig = {}) {
     episode = 1,
     audioTracks = [],
     subtitles = [],
+    qualities = [],
     resolutions = ['Auto', '1080p', '720p', '480p', '360p'],
     onAudioChange = null,
-    onEnded = null
+    onEnded = null,
+    onError = null
   } = streamConfig;
 
   if (!window.Artplayer) {
@@ -138,22 +140,33 @@ export function initNativePlayer(container, streamConfig = {}) {
   const playerMount = document.getElementById('artplayer-app');
 
   // Prepare Custom Controls
-  const controls = [
-    // 1. Quality (Adaptive Bitrate) Control
-    {
-      name: 'quality-selector',
-      position: 'right',
-      html: '📺 Auto',
-      tooltip: 'Playback Quality (Adaptive Bitrate)',
-      selector: [
+  const qualityList = (qualities && qualities.length > 0)
+    ? qualities.map((q, idx) => ({
+        default: idx === 0,
+        html: q.quality || `Stream ${idx + 1}`,
+        url: q.url
+      }))
+    : [
         { default: true, html: 'Auto (ABR)', levelIndex: -1 },
         { html: '1080p (FHD)', levelIndex: 0 },
         { html: '720p (HD)', levelIndex: 1 },
         { html: '480p (SD)', levelIndex: 2 },
         { html: '360p (Data Saver)', levelIndex: 3 }
-      ],
+      ];
+
+  const controls = [
+    // 1. Quality Control
+    {
+      name: 'quality-selector',
+      position: 'right',
+      html: `📺 ${qualityList[0] ? qualityList[0].html : 'Auto'}`,
+      tooltip: 'Playback Quality',
+      selector: qualityList,
       onSelect: function (item) {
-        if (activeHlsInstance && item.levelIndex !== undefined) {
+        if (item.url && activeArtInstance) {
+          activeArtInstance.switchUrl(item.url);
+          activeArtInstance.notice.show = `Quality set to: ${item.html}`;
+        } else if (activeHlsInstance && item.levelIndex !== undefined) {
           activeHlsInstance.currentLevel = item.levelIndex;
           if (activeArtInstance) {
             activeArtInstance.notice.show = `Quality set to: ${item.html}`;
@@ -402,6 +415,13 @@ export function initNativePlayer(container, streamConfig = {}) {
           onEnded();
         }
       });
+    }
+  });
+
+  art.on('error', (err) => {
+    console.warn('[ArtPlayer Notice]: Playback interrupted or unplayable stream', err);
+    if (typeof onError === 'function') {
+      onError(err);
     }
   });
 
