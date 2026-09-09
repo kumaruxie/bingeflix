@@ -2,20 +2,20 @@
 // BingeFlix - Main Application Logic (Direct Access & Multi-Server Streaming)
 // ==========================================================================
 
-import { 
-  INITIAL_HERO_MOVIES, 
-  INITIAL_BOLLYWOOD, 
+import {
+  INITIAL_HERO_MOVIES,
+  INITIAL_BOLLYWOOD,
   INITIAL_BOLLYWOOD_TOP10,
   INITIAL_BOLLYWOOD_ACTION,
   INITIAL_BOLLYWOOD_DRAMA,
   INITIAL_BOLLYWOOD_COMEDY,
   INITIAL_BOLLYWOOD_HORROR,
-  INITIAL_HOLLYWOOD, 
+  INITIAL_HOLLYWOOD,
   INITIAL_HOLLYWOOD_TOP10,
   INITIAL_HOLLYWOOD_SCIFI,
   INITIAL_HOLLYWOOD_ACTION,
   INITIAL_HOLLYWOOD_THRILLER,
-  INITIAL_SERIES, 
+  INITIAL_SERIES,
   INITIAL_SERIES_HINDI,
   INITIAL_SERIES_TOP10,
   INITIAL_SERIES_CRIME,
@@ -23,7 +23,7 @@ import {
   INITIAL_SOUTH,
   INITIAL_SOUTH_TOP10,
   INITIAL_SOUTH_ACTION,
-  INITIAL_ANIME, 
+  INITIAL_ANIME,
   INITIAL_ANIME_TONIGHT,
   INITIAL_ANIME_TOP10,
   INITIAL_ANIME_SHONEN,
@@ -503,64 +503,76 @@ function renderInitialCatalog() {
 }
 
 function startApp() {
-  setupNavbar();
-  setupEventListeners();
-  setupAuthSystem();
-  setupProfileSettingsSystem();
-  setupAudioGuideModal();
-  updateWatchlistBadge();
-  updateUserUI();
-  renderHistoryRow();
-  renderContinueWatchingRow();
+  // 1. Instantly render Hero Spotlight and verified movie rows (0ms delay)
+  try {
+    renderInitialCatalog();
+  } catch (e) {
+    console.error('renderInitialCatalog error:', e);
+  }
 
-  // Listen to Supabase Cloud Auth & Session Recovery
-  getActiveUser().then(user => {
-    if (user) {
+  // 2. Setup navigation, listeners and auth safely
+  try { setupNavbar(); } catch (e) { console.error('setupNavbar error:', e); }
+  try { setupEventListeners(); } catch (e) { console.error('setupEventListeners error:', e); }
+  try { setupAuthSystem(); } catch (e) { console.error('setupAuthSystem error:', e); }
+  try { setupProfileSettingsSystem(); } catch (e) { console.error('setupProfileSettingsSystem error:', e); }
+  try { setupAudioGuideModal(); } catch (e) { console.error('setupAudioGuideModal error:', e); }
+  try { updateWatchlistBadge(); } catch (e) { console.error('updateWatchlistBadge error:', e); }
+  try { updateUserUI(); } catch (e) { console.error('updateUserUI error:', e); }
+  try { renderHistoryRow(); } catch (e) { console.error('renderHistoryRow error:', e); }
+  try { renderContinueWatchingRow(); } catch (e) { console.error('renderContinueWatchingRow error:', e); }
+
+  // 3. Immediately check initial hash route on load / refresh (F5 persistence)
+  if (window.location.hash && window.location.hash !== '#' && window.location.hash !== '#home' && window.location.hash !== '#anime') {
+    handleHashRouting();
+  }
+
+  // 4. Listen to Supabase Cloud Auth & Session Recovery in background
+  try {
+    getActiveUser().then(user => {
+      if (user) {
+        state.currentUser = user;
+        updateUserUI();
+        fetchWatchlistFromCloud(user.id).then(list => {
+          if (list && list.length > 0) {
+            state.watchlist = list;
+            updateWatchlistBadge();
+          }
+        });
+        fetchContinueWatchingFromCloud(user.id).then(list => {
+          if (list && list.length > 0) {
+            state.continueWatching = list;
+            renderContinueWatchingRow();
+          }
+        });
+      }
+    }).catch(() => {});
+
+    onAuthStateChange((user, event) => {
       state.currentUser = user;
       updateUserUI();
-      fetchWatchlistFromCloud(user.id).then(list => {
-        if (list && list.length > 0) {
-          state.watchlist = list;
-          updateWatchlistBadge();
-        }
-      });
-      fetchContinueWatchingFromCloud(user.id).then(list => {
-        if (list && list.length > 0) {
-          state.continueWatching = list;
-          renderContinueWatchingRow();
-        }
-      });
-    }
-  });
-
-  onAuthStateChange((user, event) => {
-    state.currentUser = user;
-    updateUserUI();
-    if (event === 'PASSWORD_RECOVERY') {
-      state.isPasswordRecovery = true;
-      openAuthModal('reset');
-      showToast('🔑 Password recovery verified. Enter your new password below.');
-    }
-    if (user) {
-      fetchWatchlistFromCloud(user.id).then(list => {
-        if (list && list.length > 0) {
-          state.watchlist = list;
-          updateWatchlistBadge();
-        }
-      });
-      fetchContinueWatchingFromCloud(user.id).then(list => {
-        if (list && list.length > 0) {
-          state.continueWatching = list;
-          renderContinueWatchingRow();
-        }
-      });
-    }
-  });
-
-  // Instantly render Hero Spotlight and verified movie rows (0ms delay)
-  renderInitialCatalog();
-
-  // Immediately check initial hash route on load / refresh (F5 persistence)
+      if (event === 'PASSWORD_RECOVERY') {
+        state.isPasswordRecovery = true;
+        openAuthModal('reset');
+        showToast('🔑 Password recovery verified. Enter your new password below.');
+      }
+      if (user) {
+        fetchWatchlistFromCloud(user.id).then(list => {
+          if (list && list.length > 0) {
+            state.watchlist = list;
+            updateWatchlistBadge();
+          }
+        });
+        fetchContinueWatchingFromCloud(user.id).then(list => {
+          if (list && list.length > 0) {
+            state.continueWatching = list;
+            renderContinueWatchingRow();
+          }
+        });
+      }
+    });
+  } catch (err) {
+    console.warn('[Supabase] Auth listener notice:', err);
+  }
   if (window.location.hash && window.location.hash !== '#' && window.location.hash !== '#home' && window.location.hash !== '#anime') {
     handleHashRouting();
   }
@@ -583,7 +595,7 @@ function startApp() {
     try {
       let data = event.data;
       if (typeof data === 'string') {
-        try { data = JSON.parse(data); } catch {}
+        try { data = JSON.parse(data); } catch { }
       }
       if (!data) return;
 
@@ -595,7 +607,7 @@ function startApp() {
           savePlaybackProgress(state.activePlayback);
         }
       }
-    } catch (err) {}
+    } catch (err) { }
   });
 
   // Active Playback Interval Tracker (fallback for external embeds)
@@ -786,7 +798,7 @@ function switchView(viewName, updateHash = true) {
 
     // Toggle dedicated Tab Catalogs
     document.querySelectorAll('.tab-catalog').forEach(el => el.style.display = 'none');
-    
+
     const isGenreTab = ['action', 'comedy', 'scifi', 'thriller', 'horror'].includes(catKey);
     const targetCatalog = document.getElementById(isGenreTab ? 'tab-catalog-genre' : `tab-catalog-${catKey}`);
     if (targetCatalog) {
@@ -821,7 +833,7 @@ async function loadGenres() {
 async function loadAllSections() {
   const [
     // Bollywood
-    bollywoodData, 
+    bollywoodData,
     bollywoodTop10Data,
     bollywoodActionData,
     bollywoodDramaData,
@@ -831,9 +843,9 @@ async function loadAllSections() {
     hollywoodTop10Data,
     hollywoodSciFiData,
     // South Cinema
-    southData, 
+    southData,
     // Web Series (strictly without anime)
-    seriesData, 
+    seriesData,
     seriesTop10Data,
     seriesCrimeData,
     // Anime (STRICT Japanese Anime: Genre 16 & Origin JP)
@@ -1056,7 +1068,7 @@ function setHeroSlide(index) {
   if (!movie) return;
 
   const heroBackdrop = document.getElementById('hero-backdrop');
-  const backdropUrl = movie.backdrop_path 
+  const backdropUrl = movie.backdrop_path
     ? `${IMG_BASE_URL}/original${movie.backdrop_path}`
     : `${IMG_BASE_URL}/original${movie.poster_path}`;
 
@@ -1183,7 +1195,7 @@ function createMovieCard(movie, isHistory = false) {
   const card = document.createElement('div');
   card.className = 'movie-card';
 
-  const posterUrl = movie.poster_path 
+  const posterUrl = movie.poster_path
     ? `${IMG_BASE_URL}/w500${movie.poster_path}`
     : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&q=80';
   const year = ((movie.release_date || movie.first_air_date || '')).split('-')[0] || '';
@@ -1303,7 +1315,7 @@ searchInput.addEventListener('input', (e) => {
       fetchTMDB('/search/movie', { query: q }),
       fetchTMDB('/search/tv', { query: q })
     ]);
-    
+
     const combined = [
       ...((movieData && movieData.results) || []),
       ...((tvData && tvData.results) || []).map(t => ({ ...t, isTv: true }))
@@ -1456,7 +1468,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   const tmdbScore = details.vote_average ? details.vote_average.toFixed(1) : 'NR';
   const tmdbVoteCount = details.vote_count ? details.vote_count.toLocaleString() : '0';
   const ratingEl = document.getElementById('player-rating');
-  
+
   ratingEl.innerHTML = `<span class="imdb-logo-badge">IMDb</span> <span class="imdb-bold-score">★ ${tmdbScore}</span> <span class="imdb-count">(${tmdbVoteCount} votes)</span>`;
 
   fetchRealIMDbRating(imdbId, title, year, isTv).then(omdb => {
@@ -1610,7 +1622,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     displayList.forEach(ep => {
       const isCurrent = ep.episode_number === state.currentEpisode || ep.relative_number === state.currentEpisode;
       const epDisplayNum = ep.relative_number || ep.episode_number;
-      const thumb = ep.still_path 
+      const thumb = ep.still_path
         ? `${IMG_BASE_URL}/w300${ep.still_path}`
         : (details.backdrop_path ? `${IMG_BASE_URL}/w300${details.backdrop_path}` : 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=300&q=80');
 
@@ -1928,10 +1940,10 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
 
   // Look for saved progress if resumeSeconds wasn't explicitly passed
   const savedItem = (state.continueWatching || []).find(m => m.id === details.id);
-  const startSeconds = resumeSeconds > 0 
-    ? resumeSeconds 
-    : (savedItem && (savedItem.currentTime || savedItem.progressSeconds)) 
-      ? (savedItem.currentTime || savedItem.progressSeconds) 
+  const startSeconds = resumeSeconds > 0
+    ? resumeSeconds
+    : (savedItem && (savedItem.currentTime || savedItem.progressSeconds))
+      ? (savedItem.currentTime || savedItem.progressSeconds)
       : 0;
 
   // Mount Video Player (mounts video & in-player overlay controls)
@@ -2254,7 +2266,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
       paramsList.push(`startAt=${Math.floor(startSeconds)}`);
     }
     const params = paramsList.join('&');
-    streamUrl = isTv 
+    streamUrl = isTv
       ? `https://vidlink.pro/tv/${item.id}/${season}/${episode}?${params}`
       : `https://vidlink.pro/movie/${item.id}?${params}`;
 
@@ -2263,7 +2275,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // 👑 Server 2: VidSrc PM (Multi-Mirror HD & Sound)
     // ---------------------------------------------------------------
     badgeLabel = `👑 Server 2 (VidSrc PM) • ${isTv ? `S${season} : E${episode}` : 'Multi-Mirror HD'}`;
-    streamUrl = isTv 
+    streamUrl = isTv
       ? `https://vidsrc.pm/embed/tv/${item.id}/${season}/${episode}`
       : `https://vidsrc.pm/embed/movie/${item.id}`;
 
@@ -2271,10 +2283,10 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // ---------------------------------------------------------------
     // 🍥 Server 3: AutoEmbed (Sub/Dub HD & RabbitStream)
     // ---------------------------------------------------------------
-    badgeLabel = isAnime 
+    badgeLabel = isAnime
       ? `🍥 Server 3 (AutoEmbed Sub/Dub) • ${isTv ? `S${season} : E${episode}` : 'Sub/Dub HD'}`
       : `🍥 Server 3 (AutoEmbed) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server HD'}`;
-    streamUrl = isTv 
+    streamUrl = isTv
       ? `https://player.autoembed.co/embed/tv/${item.id}/${season}-${episode}/`
       : `https://player.autoembed.co/embed/movie/${item.id}/`;
 
@@ -2283,7 +2295,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // 📺 Server 4: 2Embed (Archive & Mirror HD)
     // ---------------------------------------------------------------
     badgeLabel = `📺 Server 4 (2Embed) • ${isTv ? `S${season} : E${episode}` : 'Archive HD'}`;
-    streamUrl = isTv 
+    streamUrl = isTv
       ? `https://www.2embed.cc/embedtv/${item.id}&s=${season}&e=${episode}`
       : `https://www.2embed.cc/embed/${item.id}`;
 
@@ -2292,7 +2304,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // ☁️ Server 5: SmashyStream (MegaCloud / UpCloud)
     // ---------------------------------------------------------------
     badgeLabel = `☁️ Server 5 (MegaCloud) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server'}`;
-    streamUrl = isTv 
+    streamUrl = isTv
       ? `https://player.smashy.stream/tv/${item.id}?s=${season}&e=${episode}`
       : `https://player.smashy.stream/movie/${item.id}`;
 
@@ -2497,7 +2509,7 @@ function savePlaybackProgress(active, forceSync = false) {
 function recordContinueWatching(item, season = 1, episode = 1, currentTime = 0, duration = 0) {
   if (!item || !item.id) return;
   const isTv = Boolean(item.isTv || item.first_air_date || (item.seasons && item.seasons.length > 0));
-  
+
   const existing = (state.continueWatching || []).find(m => m.id === item.id);
   const cur = currentTime > 0 ? Math.round(currentTime) : (existing?.currentTime || existing?.progressSeconds || 0);
   const dur = duration > 0 ? Math.round(duration) : (existing?.duration || existing?.durationSeconds || (isTv ? 1440 : 6000));
@@ -2705,8 +2717,8 @@ function renderLibraryView() {
   };
 
   if (state.activeLibraryTab === 'watchlist') {
-    subtitle.textContent = state.currentUser 
-      ? `@${state.currentUser.username}, you have ${state.watchlist.length} saved movies in your watchlist.` 
+    subtitle.textContent = state.currentUser
+      ? `@${state.currentUser.username}, you have ${state.watchlist.length} saved movies in your watchlist.`
       : `You have ${state.watchlist.length} saved movies.`;
 
     if (state.watchlist.length === 0) {
@@ -3409,7 +3421,7 @@ function setupProfileSettingsSystem() {
     alertBox.textContent = '';
   }
 
-  window.openProfileSettingsModal = function() {
+  window.openProfileSettingsModal = function () {
     if (!modal) return;
     hideAlert();
     modal.style.display = 'flex';
@@ -3545,7 +3557,7 @@ function setupProfileSettingsSystem() {
 }
 
 // Global Testing Helper for the user to clear all local databases & sessions anytime:
-window.clearAxonDB = function() {
+window.clearAxonDB = function () {
   clearAllAuthSessions();
   state.currentUser = null;
   updateUserUI();
