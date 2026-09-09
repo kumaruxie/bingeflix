@@ -39,6 +39,25 @@ import {
 } from './catalogData.js';
 
 import { destroyNativePlayer, initNativePlayer } from './nativePlayer.js';
+import {
+  isSupabaseConfigured,
+  signUpWithEmail,
+  signInWithEmail,
+  signOutSupabase,
+  getActiveUser,
+  onAuthStateChange,
+  syncWatchlistToCloud,
+  fetchWatchlistFromCloud,
+  recordContinueWatchingToCloud,
+  fetchContinueWatchingFromCloud,
+  clearContinueWatchingInCloud,
+  updateUserProfile,
+  sendPasswordResetEmail,
+  updateUserPassword,
+  checkUsernameAvailability,
+  checkEmailAvailability,
+  clearAllAuthSessions
+} from './supabase.js';
 
 const TMDB_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) || 'df1c541385e699bbed7ffd32934162da';
 const TMDB_BASE_URL = 'https://api.tmdb.org/3';
@@ -146,6 +165,7 @@ const state = {
   activeHeroMovies: [...INITIAL_ANIME_TONIGHT, ...INITIAL_ANIME],
   watchlist: JSON.parse(localStorage.getItem('bingeflix_watchlist') || '[]'),
   watchHistory: JSON.parse(localStorage.getItem('bingeflix_watch_history') || '[]'),
+  continueWatching: JSON.parse(localStorage.getItem('bingeflix_continue_watching') || '[]'),
   // Optional persistent account (Guest by default)
   currentUser: JSON.parse(localStorage.getItem('bingeflix_current_user') || 'null'),
   currentMovie: null,
@@ -156,7 +176,8 @@ const state = {
   activeLibraryTab: 'watchlist',
   activeCategoryTab: 'anime',
   aspectRatio: '16-9',
-  brightness: 100
+  brightness: 100,
+  activePlayback: null
 };
 
 // ==========================================================================
@@ -485,10 +506,56 @@ function startApp() {
   setupNavbar();
   setupEventListeners();
   setupAuthSystem();
+  setupProfileSettingsSystem();
   setupAudioGuideModal();
   updateWatchlistBadge();
   updateUserUI();
   renderHistoryRow();
+  renderContinueWatchingRow();
+
+  // Listen to Supabase Cloud Auth & Session Recovery
+  getActiveUser().then(user => {
+    if (user) {
+      state.currentUser = user;
+      updateUserUI();
+      fetchWatchlistFromCloud(user.id).then(list => {
+        if (list && list.length > 0) {
+          state.watchlist = list;
+          updateWatchlistBadge();
+        }
+      });
+      fetchContinueWatchingFromCloud(user.id).then(list => {
+        if (list && list.length > 0) {
+          state.continueWatching = list;
+          renderContinueWatchingRow();
+        }
+      });
+    }
+  });
+
+  onAuthStateChange((user, event) => {
+    state.currentUser = user;
+    updateUserUI();
+    if (event === 'PASSWORD_RECOVERY') {
+      state.isPasswordRecovery = true;
+      openAuthModal('reset');
+      showToast('🔑 Password recovery verified. Enter your new password below.');
+    }
+    if (user) {
+      fetchWatchlistFromCloud(user.id).then(list => {
+        if (list && list.length > 0) {
+          state.watchlist = list;
+          updateWatchlistBadge();
+        }
+      });
+      fetchContinueWatchingFromCloud(user.id).then(list => {
+        if (list && list.length > 0) {
+          state.continueWatching = list;
+          renderContinueWatchingRow();
+        }
+      });
+    }
+  });
 
   // Instantly render Hero Spotlight and verified movie rows (0ms delay)
   renderInitialCatalog();
@@ -510,6 +577,47 @@ function startApp() {
 
   // Listen for browser Back/Forward navigation
   window.addEventListener('hashchange', handleHashRouting);
+
+  // Playback Progress Listener (VidLink postMessage Engine)
+  window.addEventListener('message', (event) => {
+    try {
+      let data = event.data;
+      if (typeof data === 'string') {
+        try { data = JSON.parse(data); } catch {}
+      }
+      if (!data) return;
+
+      if (data.type === 'PLAYER_EVENT' && data.data && state.activePlayback) {
+        const { currentTime, duration } = data.data;
+        if (currentTime !== undefined && currentTime >= 0) {
+          state.activePlayback.currentTime = Math.round(currentTime);
+          if (duration && duration > 0) state.activePlayback.duration = Math.round(duration);
+          savePlaybackProgress(state.activePlayback);
+        }
+      }
+    } catch (err) {}
+  });
+
+  // Active Playback Interval Tracker (fallback for external embeds)
+  setInterval(() => {
+    const playerView = document.getElementById('player-view');
+    if (!playerView || playerView.style.display === 'none') return;
+    if (!state.activePlayback || !state.activePlayback.id) return;
+
+    // Advance playback progress if player view is actively open
+    state.activePlayback.currentTime = (state.activePlayback.currentTime || 0) + 3;
+    if (!state.activePlayback.duration) {
+      state.activePlayback.duration = state.activePlayback.isTv ? 1440 : 6000;
+    }
+    savePlaybackProgress(state.activePlayback);
+  }, 3000);
+
+  // Flush progress before tab closes / reloads
+  window.addEventListener('beforeunload', () => {
+    if (state.activePlayback) {
+      savePlaybackProgress(state.activePlayback, true);
+    }
+  });
 }
 
 if (document.readyState === 'loading') {
@@ -753,22 +861,24 @@ async function loadAllSections() {
     fetchTMDB('/discover/tv', { without_genres: '16', without_origin_country: 'JP', with_genres: '80,9648', sort_by: 'popularity.desc' }),
     // Anime - 100% Japanese Anime only (Never general TV broadcast)
     fetchTMDB('/discover/tv', { with_genres: '16', with_original_language: 'ja', sort_by: 'popularity.desc' }),
-    fetchTMDB('/discover/tv', { with_genres: '16', with_original_language: 'ja', 'first_air_date.gte': '2023-01-01', sort_by: 'popularity.desc' }),
+    fetchTMDB('/discover/tv', { with_genres: '16', with_original_language: 'ja', 'first_air_date.gte': '2023-01-01', 'vote_count.gte': '150', 'vote_average.gte': '7.2', sort_by: 'popularity.desc' }),
     fetchTMDB('/discover/tv', { with_genres: '16', with_original_language: 'ja', sort_by: 'vote_average.desc', 'vote_count.gte': '200' }),
     // Kids
     fetchTMDB('/discover/movie', { with_genres: '16,10751', sort_by: 'popularity.desc' })
   ]);
 
   // Tab 1: Anime Universe (Strict Filtering)
-  if (animeTonightData && animeTonightData.results) {
+  if (animeTonightData && animeTonightData.results && animeTonightData.results.length > 0) {
     const filteredTonight = animeTonightData.results
-      .filter(isStrictAnime)
+      .filter(it => isStrictAnime(it) && it.poster_path && it.backdrop_path && (it.vote_count || 0) >= 100 && (it.vote_average || 0) >= 7.0 && !it.adult)
       .map(item => ({ ...item, isTv: true, isAnime: true }));
     const merged = [...INITIAL_ANIME_TONIGHT.filter(isStrictAnime)];
     filteredTonight.forEach(it => {
       if (!merged.some(m => m.id === it.id)) merged.push(it);
     });
     state.animeTonight = merged;
+  } else {
+    state.animeTonight = [...INITIAL_ANIME_TONIGHT];
   }
   if (animeTop10Data && animeTop10Data.results) {
     const filteredTop10 = animeTop10Data.results
@@ -1262,7 +1372,7 @@ document.addEventListener('click', (e) => {
 // ==========================================================================
 // Dedicated Player & Watch View
 // ==========================================================================
-async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode = 1, updateHash = true) {
+async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode = 1, updateHash = true, resumeSeconds = 0) {
   const endpoint = isTv ? `/tv/${id}` : `/movie/${id}`;
   let details = await fetchTMDB(endpoint, {
     append_to_response: 'videos,credits,similar,external_ids,translations',
@@ -1809,17 +1919,27 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     serverSelect.onchange = (e) => {
       const chosen = e.target.value;
       state.activeSourceType = chosen;
-      mountVideoPlayer(details, chosen, state.currentSeason || 1, state.currentEpisode || 1);
+      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+      mountVideoPlayer(details, chosen, state.currentSeason || 1, state.currentEpisode || 1, playSec);
       const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : chosen;
       showToast(`Connected to ${label}`);
     };
   }
 
-  // Mount Video Player (mounts video & in-player overlay controls)
-  mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
+  // Look for saved progress if resumeSeconds wasn't explicitly passed
+  const savedItem = (state.continueWatching || []).find(m => m.id === details.id);
+  const startSeconds = resumeSeconds > 0 
+    ? resumeSeconds 
+    : (savedItem && (savedItem.currentTime || savedItem.progressSeconds)) 
+      ? (savedItem.currentTime || savedItem.progressSeconds) 
+      : 0;
 
-  // Record into Watch History
+  // Mount Video Player (mounts video & in-player overlay controls)
+  mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1, startSeconds);
+
+  // Record into Watch History & Continue Watching
   recordMovieToHistory(details);
+  recordContinueWatching(details, state.currentSeason || 1, state.currentEpisode || 1, startSeconds);
 
   // Scroll Down Hint Button
   const scrollDownBtn = document.getElementById('btn-scroll-down-hint');
@@ -2107,7 +2227,7 @@ async function renderGenreTopShows(details, isTv) {
 // ==========================================================================
 // Stream Player Engine (5 Multi-CDN High-Speed Servers + Zero Ads)
 // ==========================================================================
-async function mountVideoPlayer(item, type, season = 1, episode = 1) {
+async function mountVideoPlayer(item, type, season = 1, episode = 1, startSeconds = 0) {
   const cinemaScreen = document.getElementById('cinema-screen');
   const badge = document.getElementById('player-view-badge');
   const isTv = Boolean(item.isTv || item.first_air_date || (item.seasons && item.seasons.length > 0));
@@ -2129,7 +2249,11 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
     // ⚡ Server 1: VidLink 4K (Ultra HD & Full Audio)
     // ---------------------------------------------------------------
     badgeLabel = `⚡ Server 1 (VidLink 4K) • ${isTv ? `S${season} : E${episode}` : 'Ultra HD & Sound'}`;
-    const params = 'primaryColor=e50914';
+    const paramsList = ['primaryColor=e50914'];
+    if (startSeconds && startSeconds > 5) {
+      paramsList.push(`startAt=${Math.floor(startSeconds)}`);
+    }
+    const params = paramsList.join('&');
     streamUrl = isTv 
       ? `https://vidlink.pro/tv/${item.id}/${season}/${episode}?${params}`
       : `https://vidlink.pro/movie/${item.id}?${params}`;
@@ -2180,12 +2304,32 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
     const videos = item.videos ? item.videos.results : [];
     const trailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
     if (trailer && trailer.key) {
-      streamUrl = `https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=1&rel=0&modestbranding=1`;
+      streamUrl = `https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=1&rel=0&modestbranding=1${startSeconds > 5 ? `&start=${Math.floor(startSeconds)}` : ''}`;
     }
   }
 
   if (badge) badge.textContent = badgeLabel;
   state.currentStreamUrl = streamUrl;
+
+  // Initialize Active Playback Memory for real-time progress syncing
+  state.activePlayback = {
+    id: item.id,
+    title: item.title || item.name,
+    poster_path: item.poster_path,
+    backdrop_path: item.backdrop_path,
+    isTv: isTv,
+    season: parseInt(season, 10) || 1,
+    episode: parseInt(episode, 10) || 1,
+    currentTime: startSeconds || 0,
+    duration: 0,
+    lastSavedAt: Date.now()
+  };
+
+  if (startSeconds > 5) {
+    const m = Math.floor(startSeconds / 60);
+    const s = Math.floor(startSeconds % 60);
+    showToast(`▶ Resumed playback from ${m > 0 ? `${m}m ` : ''}${s}s`);
+  }
 
   // Sync Server Select Dropdown if present
   const serverSelect = document.getElementById('player-server-select');
@@ -2214,7 +2358,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1) {
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" 
         allowfullscreen="true" 
         webkitallowfullscreen="true" 
-        mozallowfullscreen="true"
+        mozallowfullscreen="true" 
         referrerpolicy="origin">
       </iframe>
     `;
@@ -2250,6 +2394,10 @@ export function setupInPlayerControls() {
 }
 
 function stopVideoPlayback() {
+  if (state.activePlayback) {
+    savePlaybackProgress(state.activePlayback, true);
+    state.activePlayback = null;
+  }
   destroyNativePlayer();
   if (torrentStatusTimer) {
     clearInterval(torrentStatusTimer);
@@ -2305,6 +2453,181 @@ function renderHistoryRow() {
 }
 
 // ==========================================================================
+// Continue Watching Engine (Homepage Row with Instant Resume)
+// ==========================================================================
+function savePlaybackProgress(active, forceSync = false) {
+  if (!active || !active.id) return;
+  const now = Date.now();
+  if (!forceSync && active.lastSavedAt && (now - active.lastSavedAt < 3000)) return;
+  active.lastSavedAt = now;
+
+  const cur = Math.max(0, Math.round(active.currentTime || 0));
+  const isTv = Boolean(active.isTv);
+  const dur = Math.max(cur, Math.round(active.duration || (isTv ? 1440 : 6000)));
+  const progressPct = Math.min(99, Math.max(5, Math.round((cur / dur) * 100)));
+
+  const entry = {
+    id: active.id,
+    title: active.title,
+    poster_path: active.poster_path,
+    backdrop_path: active.backdrop_path,
+    isTv: isTv,
+    season: parseInt(active.season, 10) || 1,
+    episode: parseInt(active.episode, 10) || 1,
+    currentTime: cur,
+    duration: dur,
+    progress: progressPct,
+    progressSeconds: cur,
+    durationSeconds: dur,
+    watchedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+
+  state.continueWatching = (state.continueWatching || []).filter(m => m.id !== active.id);
+  state.continueWatching.unshift(entry);
+  if (state.continueWatching.length > 20) state.continueWatching = state.continueWatching.slice(0, 20);
+
+  localStorage.setItem('bingeflix_continue_watching', JSON.stringify(state.continueWatching));
+  renderContinueWatchingRow();
+
+  if (state.currentUser && state.currentUser.id) {
+    recordContinueWatchingToCloud(state.currentUser.id, entry);
+  }
+}
+
+function recordContinueWatching(item, season = 1, episode = 1, currentTime = 0, duration = 0) {
+  if (!item || !item.id) return;
+  const isTv = Boolean(item.isTv || item.first_air_date || (item.seasons && item.seasons.length > 0));
+  
+  const existing = (state.continueWatching || []).find(m => m.id === item.id);
+  const cur = currentTime > 0 ? Math.round(currentTime) : (existing?.currentTime || existing?.progressSeconds || 0);
+  const dur = duration > 0 ? Math.round(duration) : (existing?.duration || existing?.durationSeconds || (isTv ? 1440 : 6000));
+  const progressPct = Math.min(99, Math.max(5, Math.round((cur / dur) * 100)));
+
+  const entry = {
+    id: item.id,
+    title: item.title || item.name,
+    poster_path: item.poster_path,
+    backdrop_path: item.backdrop_path,
+    vote_average: item.vote_average,
+    isTv: isTv,
+    season: parseInt(season, 10) || 1,
+    episode: parseInt(episode, 10) || 1,
+    currentTime: cur,
+    duration: dur,
+    progress: progressPct,
+    progressSeconds: cur,
+    durationSeconds: dur,
+    watchedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  };
+
+  state.continueWatching = (state.continueWatching || []).filter(m => m.id !== item.id);
+  state.continueWatching.unshift(entry);
+  if (state.continueWatching.length > 20) state.continueWatching = state.continueWatching.slice(0, 20);
+
+  localStorage.setItem('bingeflix_continue_watching', JSON.stringify(state.continueWatching));
+  renderContinueWatchingRow();
+
+  if (state.currentUser && state.currentUser.id) {
+    recordContinueWatchingToCloud(state.currentUser.id, entry);
+  }
+}
+
+function renderContinueWatchingRow() {
+  const section = document.getElementById('section-continue-watching');
+  const track = document.getElementById('continue-watching-row');
+  if (!section || !track) return;
+
+  if (!state.continueWatching || state.continueWatching.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  track.innerHTML = '';
+
+  state.continueWatching.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'continue-card';
+
+    const thumbUrl = item.backdrop_path
+      ? `${IMG_BASE_URL}/w500${item.backdrop_path}`
+      : (item.poster_path ? `${IMG_BASE_URL}/w500${item.poster_path}` : 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=500&q=80');
+
+    // Dynamic watch progress bar
+    let pct = 15;
+    if (item.progress !== undefined && item.progress > 0) {
+      pct = item.progress;
+    } else if (item.currentTime && item.duration) {
+      pct = Math.round((item.currentTime / item.duration) * 100);
+    } else if (item.progressSeconds && item.durationSeconds) {
+      pct = Math.round((item.progressSeconds / item.durationSeconds) * 100);
+    }
+    pct = Math.max(5, Math.min(100, pct));
+
+    // Clean, compact EP badge
+    const epBadgeText = item.isTv ? (item.episode ? `EP ${item.episode}` : 'Series') : 'Movie';
+
+    // Human readable duration string
+    let timeLabel = item.watchedAt || 'Recently';
+    if (item.currentTime && item.currentTime > 60) {
+      const curM = Math.floor(item.currentTime / 60);
+      if (item.duration && item.duration > 60) {
+        const totM = Math.floor(item.duration / 60);
+        timeLabel = `${curM}m of ${totM}m`;
+      } else {
+        timeLabel = `${curM}m watched`;
+      }
+    }
+
+    card.innerHTML = `
+      <div class="continue-thumb-box">
+        <span class="continue-ep-badge">${epBadgeText}</span>
+        <button class="continue-remove-btn" title="Remove from Continue Watching" data-item-id="${item.id}">✕</button>
+        <img src="${thumbUrl}" alt="${item.title}" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1578632767115-351597cf2477?w=500&q=80';" />
+        <div class="continue-play-overlay">
+          <div class="continue-play-btn-circle">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4" /></svg>
+          </div>
+        </div>
+      </div>
+      <div class="continue-progress-line">
+        <div class="continue-progress-fill" style="width: ${pct}%;"></div>
+      </div>
+      <div class="continue-info">
+        <div class="continue-title">${item.title}</div>
+        <div class="continue-meta">
+          <span>${item.isTv ? `S${item.season || 1} : E${item.episode || 1}` : 'Movie'}</span>
+          <span>${timeLabel}</span>
+        </div>
+      </div>
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.continue-remove-btn')) {
+        e.stopPropagation();
+        deleteFromContinueWatching(item.id);
+        return;
+      }
+      const resumeSec = item.currentTime || item.progressSeconds || 0;
+      openPlayerView(item.id, item.isTv, item.season || 1, item.episode || 1, true, resumeSec);
+    });
+
+    track.appendChild(card);
+  });
+}
+
+function deleteFromContinueWatching(id) {
+  state.continueWatching = (state.continueWatching || []).filter(m => m.id !== id);
+  localStorage.setItem('bingeflix_continue_watching', JSON.stringify(state.continueWatching));
+  renderContinueWatchingRow();
+  if (state.currentUser && state.currentUser.id) {
+    clearContinueWatchingInCloud(state.currentUser.id);
+    state.continueWatching.forEach(it => recordContinueWatchingToCloud(state.currentUser.id, it));
+  }
+  showToast('Removed from Continue Watching');
+}
+
+// ==========================================================================
 // Database & Watchlist Management
 // ==========================================================================
 function getUsersDB() {
@@ -2313,18 +2636,6 @@ function getUsersDB() {
 
 function saveUsersDB(users) {
   localStorage.setItem('bingeflix_users_db', JSON.stringify(users));
-}
-
-function syncUserWatchlistToDB() {
-  if (!state.currentUser) return;
-  const users = getUsersDB();
-  const idx = users.findIndex(u => u.id === state.currentUser.id || u.username === state.currentUser.username);
-  if (idx >= 0) {
-    users[idx].watchlist = state.watchlist;
-    saveUsersDB(users);
-  }
-  state.currentUser.watchlist = state.watchlist;
-  localStorage.setItem('bingeflix_user', JSON.stringify(state.currentUser));
 }
 
 function isMovieInWatchlist(id) {
@@ -2347,11 +2658,9 @@ function toggleWatchlist(movie) {
     showToast(`Added "${movie.title || movie.name}" to Watchlist!`);
   }
 
-  // Persist to user's database entry
-  if (state.currentUser) {
-    syncUserWatchlistToDB();
-  } else {
-    localStorage.setItem('bingeflix_watchlist', JSON.stringify(state.watchlist));
+  localStorage.setItem('bingeflix_watchlist', JSON.stringify(state.watchlist));
+  if (state.currentUser && state.currentUser.id) {
+    syncWatchlistToCloud(state.currentUser.id, state.watchlist);
   }
 
   updateWatchlistBadge();
@@ -2561,13 +2870,17 @@ function updateUserUI() {
   const dropdownEmail = document.getElementById('dropdown-user-email');
 
   if (state.currentUser) {
+    document.body.classList.add('user-logged-in');
     const name = state.currentUser.name || state.currentUser.username || 'User';
     const avatarUrl = getAvatarUrl(state.currentUser.avatar || 'goku');
     if (navAuthLabel) navAuthLabel.textContent = name;
     if (navAuthIcon) {
-      navAuthIcon.innerHTML = `<img src="${avatarUrl}" class="nav-avatar-img" alt="${name}" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover;" />`;
+      navAuthIcon.innerHTML = `<img src="${avatarUrl}" class="nav-avatar-img" alt="${name}" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--accent-red);" />`;
     }
-    if (navAuthBtn) navAuthBtn.style.borderColor = 'var(--accent-red)';
+    if (navAuthBtn) {
+      navAuthBtn.style.borderColor = 'var(--accent-red)';
+      navAuthBtn.title = name;
+    }
     if (drawerAuthBtn) drawerAuthBtn.textContent = `👤 ${name}`;
     if (dropdownName) dropdownName.textContent = name;
     if (dropdownEmail) dropdownEmail.textContent = state.currentUser.email || 'Registered User';
@@ -2576,6 +2889,7 @@ function updateUserUI() {
       dropdownAvatar.innerHTML = `<img src="${avatarUrl}" alt="${name}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" />`;
     }
   } else {
+    document.body.classList.remove('user-logged-in');
     if (navAuthLabel) navAuthLabel.textContent = 'Sign In';
     if (navAuthIcon) {
       navAuthIcon.innerHTML = `
@@ -2585,10 +2899,17 @@ function updateUserUI() {
         </svg>
       `;
     }
-    if (navAuthBtn) navAuthBtn.style.borderColor = 'rgba(229, 9, 20, 0.4)';
+    if (navAuthBtn) {
+      navAuthBtn.style.borderColor = 'rgba(229, 9, 20, 0.4)';
+      navAuthBtn.title = 'Sign In';
+    }
     if (drawerAuthBtn) drawerAuthBtn.textContent = 'Sign In';
     if (dropdownName) dropdownName.textContent = 'Guest User';
     if (dropdownEmail) dropdownEmail.textContent = 'Optional Account';
+    const dropdownAvatar = document.getElementById('dropdown-user-avatar');
+    if (dropdownAvatar) {
+      dropdownAvatar.innerHTML = `<span style="font-size: 1.3rem;">👤</span>`;
+    }
   }
 }
 
@@ -2612,13 +2933,30 @@ function setAuthTab(tab) {
   if (signupForm) signupForm.style.display = tab === 'signup' ? 'flex' : 'none';
   if (resetForm) resetForm.style.display = tab === 'reset' ? 'flex' : 'none';
 
-  if (titleEl) {
-    titleEl.textContent = tab === 'signup' ? 'Create Free Account' : (tab === 'reset' ? 'Reset Password' : 'Sign In to AXON');
+  const emailGroup = document.getElementById('reset-email-group');
+  const passGroup = document.getElementById('reset-password-group');
+  const submitResetBtn = document.getElementById('btn-submit-reset');
+
+  if (tab === 'reset') {
+    if (state.isPasswordRecovery) {
+      if (emailGroup) emailGroup.style.display = 'none';
+      if (passGroup) passGroup.style.display = 'block';
+      if (submitResetBtn) submitResetBtn.textContent = 'Save New Password';
+      if (titleEl) titleEl.textContent = 'Set New Password';
+    } else {
+      if (emailGroup) emailGroup.style.display = 'block';
+      if (passGroup) passGroup.style.display = 'none';
+      if (submitResetBtn) submitResetBtn.textContent = 'Send Password Reset Link';
+      if (titleEl) titleEl.textContent = 'Reset Password';
+    }
+  } else {
+    if (titleEl) {
+      titleEl.textContent = tab === 'signup' ? 'Create Free Account' : 'Sign In to AXON';
+    }
   }
   if (subtitleEl) {
-    subtitleEl.textContent = tab === 'signup' 
-      ? 'Personalize your profile and select your favorite anime icon'
-      : (tab === 'reset' ? 'Enter your registered email to update your credentials' : 'Access your personalized watchlist and preferences');
+    subtitleEl.style.display = 'none';
+    subtitleEl.textContent = '';
   }
 }
 
@@ -2679,7 +3017,7 @@ function setupAuthSystem() {
 
   // Dropdown menu buttons
   const ddWatchlist = document.getElementById('dropdown-btn-watchlist');
-  const ddResetPw = document.getElementById('dropdown-btn-reset-pw');
+  const ddProfileSettings = document.getElementById('dropdown-btn-profile-settings');
   const ddSwitch = document.getElementById('dropdown-btn-switch-account');
   const ddLogout = document.getElementById('dropdown-btn-logout');
 
@@ -2689,10 +3027,17 @@ function setupAuthSystem() {
       switchView('watchlist');
     };
   }
-  if (ddResetPw) {
-    ddResetPw.onclick = () => {
+  if (ddProfileSettings) {
+    ddProfileSettings.onclick = () => {
       if (dropdownMenu) dropdownMenu.style.display = 'none';
-      openAuthModal('reset');
+      if (!state.currentUser) {
+        showToast('Please sign in first to access Profile Settings.');
+        openAuthModal('login');
+        return;
+      }
+      if (typeof window.openProfileSettingsModal === 'function') {
+        window.openProfileSettingsModal();
+      }
     };
   }
   if (ddSwitch) {
@@ -2702,12 +3047,13 @@ function setupAuthSystem() {
     };
   }
   if (ddLogout) {
-    ddLogout.onclick = () => {
+    ddLogout.onclick = async () => {
       if (dropdownMenu) dropdownMenu.style.display = 'none';
+      await signOutSupabase();
+      clearAllAuthSessions();
       state.currentUser = null;
-      localStorage.removeItem('bingeflix_current_user');
       updateUserUI();
-      showToast('Signed out. You are now browsing as Guest.');
+      showToast('Signed out & storage reset. Ready for fresh test!');
     };
   }
 
@@ -2753,47 +3099,134 @@ function setupAuthSystem() {
     };
   }
 
-  // 1. Sign In Form
+  // 1. Sign In Form (Supabase Cloud Auth)
   const formLogin = document.getElementById('auth-form-login');
   if (formLogin) {
     formLogin.onsubmit = async (e) => {
       e.preventDefault();
       const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
+      const submitBtn = formLogin.querySelector('button[type="submit"]');
+
+      if (submitBtn) submitBtn.disabled = true;
 
       try {
-        const res = await fetch('http://localhost:5000/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        }).catch(() => null);
-
-        let user = null;
-        if (res && res.ok) {
-          const data = await res.json();
-          user = data.user;
-        } else {
-          const users = getUsersDB();
-          user = users.find(u => (u.email && u.email.toLowerCase() === email.toLowerCase() || u.username === email) && u.password === password);
-        }
-
+        const { user } = await signInWithEmail(email, password);
         if (user) {
           state.currentUser = user;
-          localStorage.setItem('bingeflix_current_user', JSON.stringify(user));
           updateUserUI();
           closeAuthModal();
           showToast(`Welcome back, ${user.name || user.username}!`);
           formLogin.reset();
-        } else {
-          showAuthAlert('Invalid email/ID or password. Please check your credentials.');
+
+          // Sync cloud watchlist and continue-watching
+          fetchWatchlistFromCloud(user.id).then(list => {
+            if (list && list.length > 0) {
+              state.watchlist = list;
+              updateWatchlistBadge();
+            }
+          });
+          fetchContinueWatchingFromCloud(user.id).then(list => {
+            if (list && list.length > 0) {
+              state.continueWatching = list;
+              renderContinueWatchingRow();
+            }
+          });
         }
       } catch (err) {
-        showAuthAlert('Error during sign in. Please verify your credentials.');
+        showAuthAlert(err.message || 'Invalid email or password. Please verify your credentials.');
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
     };
   }
 
-  // 2. Create Account Form
+  // Real-time Username Availability Check with Supabase
+  const signupNameInput = document.getElementById('signup-name');
+  const userIcon = document.getElementById('username-status-icon');
+  let usernameDebounceTimer = null;
+  let isUsernameValid = false;
+
+  if (signupNameInput) {
+    signupNameInput.addEventListener('input', () => {
+      const val = signupNameInput.value.trim();
+      clearTimeout(usernameDebounceTimer);
+      signupNameInput.classList.remove('is-valid', 'is-invalid', 'is-checking');
+
+      if (!val || val.length < 3) {
+        if (userIcon) userIcon.innerHTML = '';
+        isUsernameValid = false;
+        return;
+      }
+
+      if (userIcon) userIcon.innerHTML = '<span style="color: #facc15; font-size: 0.82rem;">⏳</span>';
+      signupNameInput.classList.add('is-checking');
+
+      usernameDebounceTimer = setTimeout(async () => {
+        signupNameInput.classList.remove('is-checking');
+        const res = await checkUsernameAvailability(val);
+        if (res.available) {
+          isUsernameValid = true;
+          signupNameInput.classList.remove('is-invalid');
+          signupNameInput.classList.add('is-valid');
+          if (userIcon) userIcon.innerHTML = '<span style="color: #22c55e; font-size: 1.15rem; font-weight: bold; line-height: 1;">✓</span>';
+        } else {
+          isUsernameValid = false;
+          signupNameInput.classList.remove('is-valid');
+          signupNameInput.classList.add('is-invalid');
+          if (userIcon) userIcon.innerHTML = '<span style="color: #ef4444; font-size: 1.15rem; font-weight: bold; line-height: 1;">✕</span>';
+        }
+      }, 300);
+    });
+  }
+
+  // Real-time Email Availability Check (1 account per Gmail/email)
+  const signupEmailInput = document.getElementById('signup-email');
+  const emailIcon = document.getElementById('email-status-icon');
+  let emailDebounceTimer = null;
+  let isEmailValid = false;
+
+  if (signupEmailInput) {
+    signupEmailInput.addEventListener('input', () => {
+      const val = signupEmailInput.value.trim().toLowerCase();
+      clearTimeout(emailDebounceTimer);
+      signupEmailInput.classList.remove('is-valid', 'is-invalid', 'is-checking');
+
+      if (!val) {
+        if (emailIcon) emailIcon.innerHTML = '';
+        isEmailValid = false;
+        return;
+      }
+
+      if (!val.includes('@') || !val.includes('.')) {
+        if (emailIcon) emailIcon.innerHTML = '';
+        signupEmailInput.classList.add('is-invalid');
+        isEmailValid = false;
+        return;
+      }
+
+      if (emailIcon) emailIcon.innerHTML = '<span style="color: #facc15; font-size: 0.82rem;">⏳</span>';
+      signupEmailInput.classList.add('is-checking');
+
+      emailDebounceTimer = setTimeout(async () => {
+        signupEmailInput.classList.remove('is-checking');
+        const res = await checkEmailAvailability(val);
+        if (res.available) {
+          isEmailValid = true;
+          signupEmailInput.classList.remove('is-invalid');
+          signupEmailInput.classList.add('is-valid');
+          if (emailIcon) emailIcon.innerHTML = '<span style="color: #22c55e; font-size: 1.15rem; font-weight: bold; line-height: 1;">✓</span>';
+        } else {
+          isEmailValid = false;
+          signupEmailInput.classList.remove('is-valid');
+          signupEmailInput.classList.add('is-invalid');
+          if (emailIcon) emailIcon.innerHTML = '<span style="color: #ef4444; font-size: 1.15rem; font-weight: bold; line-height: 1;">✕</span>';
+        }
+      }, 350);
+    });
+  }
+
+  // 2. Create Account Form (Supabase Cloud Auth)
   const formSignup = document.getElementById('auth-form-signup');
   if (formSignup) {
     formSignup.onsubmit = async (e) => {
@@ -2801,6 +3234,7 @@ function setupAuthSystem() {
       const name = document.getElementById('signup-name').value.trim();
       const email = document.getElementById('signup-email').value.trim();
       const password = document.getElementById('signup-password').value;
+      const submitBtn = formSignup.querySelector('button[type="submit"]');
 
       if (!name || !email || !password) {
         showAuthAlert('Please fill in all fields.');
@@ -2811,35 +3245,32 @@ function setupAuthSystem() {
         return;
       }
 
+      if (signupNameInput && signupNameInput.classList.contains('is-invalid')) {
+        showAuthAlert('Please choose an available username first.');
+        return;
+      }
+      if (signupEmailInput && signupEmailInput.classList.contains('is-invalid')) {
+        showAuthAlert('An account with this email address already exists. Only 1 account per email.');
+        return;
+      }
+
+      if (submitBtn) submitBtn.disabled = true;
+
       try {
-        const res = await fetch('http://localhost:5000/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, password, avatar: selectedAvatarKey })
-        }).catch(() => null);
-
-        let newUser = { id: 'usr_' + Date.now(), name, username: name, email, password, avatar: selectedAvatarKey };
-        if (res && res.ok) {
-          const data = await res.json();
-          newUser = data.user;
-          if (!newUser.avatar) newUser.avatar = selectedAvatarKey;
+        const { user } = await signUpWithEmail(email, password, name, selectedAvatarKey);
+        if (user) {
+          state.currentUser = user;
+          updateUserUI();
+          closeAuthModal();
+          showToast(`Account created! Welcome, ${user.name || user.username}!`);
+          formSignup.reset();
+          if (userIcon) userIcon.innerHTML = '';
+          if (emailIcon) emailIcon.innerHTML = '';
         }
-
-        const users = getUsersDB();
-        const existing = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-        if (!existing) {
-          users.push(newUser);
-          saveUsersDB(users);
-        }
-
-        state.currentUser = newUser;
-        localStorage.setItem('bingeflix_current_user', JSON.stringify(newUser));
-        updateUserUI();
-        closeAuthModal();
-        showToast(`Account created! Welcome, ${newUser.name || newUser.username}!`);
-        formSignup.reset();
       } catch (err) {
-        showAuthAlert('Could not create account. Please try again.');
+        showAuthAlert(err.message || 'Could not create account. Please try again.');
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
     };
   }
@@ -2849,41 +3280,49 @@ function setupAuthSystem() {
   if (formReset) {
     formReset.onsubmit = async (e) => {
       e.preventDefault();
-      const email = document.getElementById('reset-email').value.trim();
-      const newPassword = document.getElementById('reset-new-password').value;
-
-      if (newPassword.length < 6) {
-        showAuthAlert('New password must be at least 6 characters.');
-        return;
-      }
+      const submitBtn = formReset.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
 
       try {
-        const res = await fetch('http://localhost:5000/api/auth/reset-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, newPassword })
-        }).catch(() => null);
+        if (state.isPasswordRecovery) {
+          // Recovery flow: User clicked email link and is setting new password
+          const newPassword = document.getElementById('reset-new-password').value;
+          if (newPassword.length < 6) {
+            showAuthAlert('New password must be at least 6 characters.');
+            if (submitBtn) submitBtn.disabled = false;
+            return;
+          }
 
-        const users = getUsersDB();
-        const idx = users.findIndex(u => u.email && u.email.toLowerCase() === email.toLowerCase());
-        if (idx >= 0) {
-          users[idx].password = newPassword;
-          saveUsersDB(users);
-        }
+          await updateUserPassword(newPassword);
+          state.isPasswordRecovery = false;
+          showAuthAlert('Password updated successfully! Welcome back.', true);
+          showToast('🎉 Password updated! You are now logged in.');
+          setTimeout(() => {
+            closeAuthModal();
+            formReset.reset();
+          }, 1500);
 
-        if ((res && res.ok) || idx >= 0) {
-          showAuthAlert('Password updated successfully! Switching to Sign In...', true);
+        } else {
+          // Request flow: User forgot password and wants reset email sent
+          const email = document.getElementById('reset-email').value.trim();
+          if (!email) {
+            showAuthAlert('Please enter your registered email address.');
+            if (submitBtn) submitBtn.disabled = false;
+            return;
+          }
+
+          await sendPasswordResetEmail(email);
+          showAuthAlert('Password reset email sent! Check your inbox for the link.', true);
+          showToast('📧 Reset link sent! Check your inbox to reset your password.');
           setTimeout(() => {
             setAuthTab('login');
-            const loginEmailInput = document.getElementById('login-email');
-            if (loginEmailInput) loginEmailInput.value = email;
             formReset.reset();
-          }, 1400);
-        } else {
-          showAuthAlert('No registered account found with this email.');
+          }, 4000);
         }
       } catch (err) {
-        showAuthAlert('Could not reset password. Please try again.');
+        showAuthAlert(err.message || 'Could not process request. Please check the email and try again.');
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
     };
   }
@@ -2938,6 +3377,181 @@ function showToast(message) {
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
+
+// ==========================================================================
+// Profile Settings System (Change Username & Anime Icon with Real-time Check)
+// ==========================================================================
+function setupProfileSettingsSystem() {
+  const modal = document.getElementById('profile-settings-modal');
+  const closeBtn = document.getElementById('close-profile-settings-btn');
+  const form = document.getElementById('form-profile-settings');
+  const usernameInput = document.getElementById('settings-username');
+  const emailInput = document.getElementById('settings-email');
+  const iconSpan = document.getElementById('settings-username-status-icon');
+  const alertBox = document.getElementById('settings-alert-box');
+  const currentAvatarImg = document.getElementById('settings-current-avatar-img');
+  const selectedAvatarLabel = document.getElementById('settings-selected-avatar-name');
+  const avatarGrid = document.getElementById('settings-avatar-grid');
+
+  let selectedAvatar = 'goku';
+  let debounceTimer = null;
+
+  function showAlert(msg, isSuccess = false) {
+    if (!alertBox) return;
+    alertBox.style.display = 'block';
+    alertBox.textContent = msg;
+    alertBox.className = `auth-alert-box ${isSuccess ? 'alert-success' : 'alert-error'}`;
+  }
+
+  function hideAlert() {
+    if (!alertBox) return;
+    alertBox.style.display = 'none';
+    alertBox.textContent = '';
+  }
+
+  window.openProfileSettingsModal = function() {
+    if (!modal) return;
+    hideAlert();
+    modal.style.display = 'flex';
+
+    if (state.currentUser) {
+      selectedAvatar = state.currentUser.avatar || 'goku';
+      if (usernameInput) {
+        usernameInput.value = state.currentUser.username || state.currentUser.name || '';
+        usernameInput.classList.remove('is-valid', 'is-invalid', 'is-checking');
+      }
+      if (emailInput) {
+        emailInput.value = state.currentUser.email || '';
+      }
+      if (iconSpan) iconSpan.innerHTML = '<span style="color: #22c55e; font-size: 1.15rem; font-weight: bold;">✓</span>';
+      if (currentAvatarImg) {
+        currentAvatarImg.src = getAvatarUrl(selectedAvatar);
+      }
+      if (selectedAvatarLabel) {
+        selectedAvatarLabel.textContent = ANIME_AVATARS[selectedAvatar]?.name || selectedAvatar;
+      }
+    }
+
+    // Populate anime avatar picker grid
+    if (avatarGrid) {
+      avatarGrid.innerHTML = '';
+      Object.entries(ANIME_AVATARS).forEach(([key, char]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `avatar-pick-btn ${key === selectedAvatar ? 'active' : ''}`;
+        btn.innerHTML = `
+          <img src="${char.path}" class="avatar-img-choice" alt="${char.name}" onerror="this.onerror=null; this.src='./avatars/goku.jpg';" />
+          <span class="avatar-name-label">${char.name}</span>
+        `;
+        btn.onclick = () => {
+          selectedAvatar = key;
+          document.querySelectorAll('#settings-avatar-grid .avatar-pick-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          if (selectedAvatarLabel) selectedAvatarLabel.textContent = char.name;
+          if (currentAvatarImg) currentAvatarImg.src = char.path;
+        };
+        avatarGrid.appendChild(btn);
+      });
+    }
+  };
+
+  function closeModal() {
+    if (modal) modal.style.display = 'none';
+    hideAlert();
+  }
+
+  if (closeBtn) closeBtn.onclick = closeModal;
+  if (modal) {
+    modal.onclick = (e) => {
+      if (e.target === modal) closeModal();
+    };
+  }
+
+  // Real-time username check against Supabase
+  if (usernameInput) {
+    usernameInput.addEventListener('input', () => {
+      const val = usernameInput.value.trim();
+      clearTimeout(debounceTimer);
+      usernameInput.classList.remove('is-valid', 'is-invalid', 'is-checking');
+      hideAlert();
+
+      if (!val || val.length < 3) {
+        if (iconSpan) iconSpan.innerHTML = '';
+        return;
+      }
+
+      // If user kept their own current username
+      if (state.currentUser && (state.currentUser.username || '').toLowerCase() === val.toLowerCase()) {
+        usernameInput.classList.add('is-valid');
+        if (iconSpan) iconSpan.innerHTML = '<span style="color: #22c55e; font-size: 1.15rem; font-weight: bold;">✓</span>';
+        return;
+      }
+
+      if (iconSpan) iconSpan.innerHTML = '<span style="color: #facc15; font-size: 0.82rem;">⏳</span>';
+      usernameInput.classList.add('is-checking');
+
+      debounceTimer = setTimeout(async () => {
+        usernameInput.classList.remove('is-checking');
+        const res = await checkUsernameAvailability(val);
+        if (res.available) {
+          usernameInput.classList.remove('is-invalid');
+          usernameInput.classList.add('is-valid');
+          if (iconSpan) iconSpan.innerHTML = '<span style="color: #22c55e; font-size: 1.15rem; font-weight: bold;">✓</span>';
+        } else {
+          usernameInput.classList.remove('is-valid');
+          usernameInput.classList.add('is-invalid');
+          if (iconSpan) iconSpan.innerHTML = '<span style="color: #ef4444; font-size: 1.15rem; font-weight: bold;">✕</span>';
+        }
+      }, 300);
+    });
+  }
+
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!state.currentUser) return;
+      const newUsername = usernameInput ? usernameInput.value.trim() : '';
+      if (!newUsername || newUsername.length < 3) {
+        showAlert('Username must be at least 3 characters.');
+        return;
+      }
+      if (usernameInput && usernameInput.classList.contains('is-invalid')) {
+        showAlert('This username is already taken. Please choose an available username.');
+        return;
+      }
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        const updated = await updateUserProfile(state.currentUser.id, {
+          username: newUsername,
+          avatar: selectedAvatar
+        });
+        state.currentUser = updated;
+        updateUserUI();
+        showAlert('Profile updated successfully!', true);
+        showToast('🎉 Profile updated! New username and avatar applied.');
+        setTimeout(() => {
+          closeModal();
+        }, 1200);
+      } catch (err) {
+        showAlert(err.message || 'Could not update profile. Please try again.');
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    };
+  }
+}
+
+// Global Testing Helper for the user to clear all local databases & sessions anytime:
+window.clearAxonDB = function() {
+  clearAllAuthSessions();
+  state.currentUser = null;
+  updateUserUI();
+  showToast('🧹 Local database and auth sessions cleared!');
+  console.log('[AXON] Storage cleared completely for fresh testing.');
+};
 
 
 

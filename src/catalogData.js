@@ -392,6 +392,79 @@ export const INITIAL_ANIME_TONIGHT = [
     ],
     "isTv": true,
     "isAnime": true
+  },
+  {
+    "id": 120089,
+    "title": "SPY x FAMILY",
+    "name": "SPY x FAMILY",
+    "backdrop_path": "/lysUnU6V0VfcthDbviuVlIqgHOR.jpg",
+    "poster_path": "/7NAvPYPAu7MeHwP8E9sn81PqsRh.jpg",
+    "overview": "A spy, an assassin and a telepath come together to pose as a family, each for their own reasons, while hiding their true identities from each other.",
+    "vote_average": 8.5,
+    "vote_count": 2342,
+    "release_date": "2022-04-09",
+    "genre_ids": [
+      16,
+      10759,
+      35
+    ],
+    "isTv": true,
+    "isAnime": true
+  },
+  {
+    "id": 1429,
+    "title": "Attack on Titan",
+    "name": "Attack on Titan",
+    "backdrop_path": "/rqbCbjB19amtOtFQbb3K2lgm2zv.jpg",
+    "poster_path": "/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg",
+    "overview": "100 years ago, the last remnants of humanity were forced to retreat behind the towering walls of a fortified city to escape the massive, man-eating Titans that roamed the land outside their fortress.",
+    "vote_average": 8.7,
+    "vote_count": 7679,
+    "release_date": "2013-04-07",
+    "genre_ids": [
+      16,
+      10765,
+      10759
+    ],
+    "isTv": true,
+    "isAnime": true
+  },
+  {
+    "id": 65930,
+    "title": "My Hero Academia",
+    "name": "My Hero Academia",
+    "backdrop_path": "/ol0H2DGp4ifBHA4JDlCpwJWxnY2.jpg",
+    "poster_path": "/phuYuzqWW9ru8EA3HVjE9W2Rr3M.jpg",
+    "overview": "Izuku has dreamt of being a hero all his life—a lofty goal for anyone, but especially challenging for a kid with no superpowers. That’s right, in a world where eighty percent of the population has some kind of super-powered quirk.",
+    "vote_average": 8.6,
+    "vote_count": 5375,
+    "release_date": "2016-04-03",
+    "genre_ids": [
+      10759,
+      16,
+      10765
+    ],
+    "isTv": true,
+    "isAnime": true
+  },
+  {
+    "id": 72636,
+    "title": "Made in Abyss",
+    "name": "Made in Abyss",
+    "backdrop_path": "/uzp513qTcHsAavlCJ58x5d73bzy.jpg",
+    "poster_path": "/n30CBH4BoN5Z34tCpOWIPGJYOaS.jpg",
+    "overview": "Located in the center of a remote island, the Abyss is the last unexplored region, a huge and treacherous fathomless hole inhabited by strange creatures where only the bravest adventurers descend in search of ancient relics.",
+    "vote_average": 8.3,
+    "vote_count": 667,
+    "release_date": "2017-07-07",
+    "genre_ids": [
+      16,
+      18,
+      10759,
+      10765
+    ],
+    "isTv": true,
+    "isAnime": true
   }
 ];
 
