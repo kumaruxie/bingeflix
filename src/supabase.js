@@ -105,19 +105,33 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
     if (err.message && err.message.includes('already taken')) throw err;
   }
 
-  const { data, error } = await supabase.auth.signUp({
-    email: cleanEmail,
-    password,
-    options: {
-      data: {
-        name: cleanName,
-        username: cleanName,
-        avatar
+  let authRes;
+  try {
+    authRes = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          name: cleanName,
+          username: cleanName,
+          avatar
+        }
       }
+    });
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('rate limit')) {
+      throw new Error('Supabase Email Rate Limit reached! Please turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant registration.');
     }
-  });
+    throw err;
+  }
 
-  if (error) throw error;
+  const { data, error } = authRes;
+  if (error) {
+    if (error.message && error.message.toLowerCase().includes('rate limit')) {
+      throw new Error('Supabase Email Rate Limit reached! Please turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant registration.');
+    }
+    throw error;
+  }
 
   const authUser = data.user;
   if (!authUser) {
@@ -138,21 +152,27 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
     createdAt: authUser.created_at
   };
 
-  // Upsert profile in public.profiles table
-  const { error: profileErr } = await supabase.from('profiles').upsert({
-    id: authUser.id,
-    email: cleanEmail,
-    username: cleanName,
-    avatar_url: avatar,
-    updated_at: new Date().toISOString()
-  });
-
-  if (profileErr) {
-    console.warn('[Supabase] Profile creation warning:', profileErr.message);
+  // Upsert profile in public.profiles table if session is active
+  if (data.session) {
+    try {
+      await supabase.from('profiles').upsert({
+        id: authUser.id,
+        email: cleanEmail,
+        username: cleanName,
+        avatar_url: avatar,
+        updated_at: new Date().toISOString()
+      });
+    } catch (profileErr) {
+      console.warn('[Supabase] Profile creation warning:', profileErr.message);
+    }
   }
 
   localStorage.setItem('bingeflix_current_user', JSON.stringify(userProfile));
-  return { user: userProfile, session: data.session };
+  return { 
+    user: userProfile, 
+    session: data.session,
+    needsEmailConfirmation: !data.session 
+  };
 }
 
 /**
@@ -195,12 +215,26 @@ export async function signInWithEmail(identifier, password) {
     }
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: loginEmail,
-    password
-  });
+  let signInRes;
+  try {
+    signInRes = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password
+    });
+  } catch (err) {
+    if (err.message && err.message.toLowerCase().includes('email not confirmed')) {
+      throw new Error('Email not confirmed! Please check your Gmail/Email to confirm your account, or turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant password login.');
+    }
+    throw err;
+  }
 
-  if (error) throw error;
+  const { data, error } = signInRes;
+  if (error) {
+    if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
+      throw new Error('Email not confirmed! Please check your Gmail/Email to confirm your account, or turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant password login.');
+    }
+    throw error;
+  }
 
   const authUser = data.user;
   let userProfile = {
@@ -544,13 +578,16 @@ export async function syncWatchlistToCloud(userId, watchlist) {
   if (!isSupabaseConfigured || !userId) return;
 
   try {
-    // Clear and insert or batch upsert
     for (const movie of watchlist) {
+      if (!movie || !movie.id) continue;
       await supabase.from('user_watchlist').upsert({
         user_id: userId,
-        movie_data: movie,
+        media_id: String(movie.id),
+        title: movie.title || movie.name || 'Untitled',
+        poster_path: movie.poster_path || '',
+        media_type: movie.media_type || (movie.isTv ? 'tv' : 'movie'),
         created_at: new Date().toISOString()
-      }, { onConflict: 'user_id, (movie_data->>\'id\')' });
+      }, { onConflict: 'user_id,media_id' });
     }
   } catch (e) {
     console.warn('[Supabase] Watchlist sync notice:', e.message);
@@ -568,12 +605,19 @@ export async function fetchWatchlistFromCloud(userId) {
   try {
     const { data, error } = await supabase
       .from('user_watchlist')
-      .select('movie_data')
+      .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      const cloudList = data.map(d => d.movie_data);
+      const cloudList = data.map(d => ({
+        id: isNaN(d.media_id) ? d.media_id : Number(d.media_id),
+        title: d.title,
+        name: d.title,
+        poster_path: d.poster_path,
+        media_type: d.media_type,
+        isTv: d.media_type === 'tv'
+      }));
       localStorage.setItem('bingeflix_watchlist', JSON.stringify(cloudList));
       return cloudList;
     }
@@ -624,9 +668,16 @@ export async function recordContinueWatchingToCloud(userId, item) {
   try {
     await supabase.from('user_continue_watching').upsert({
       user_id: userId,
-      movie_data: entry,
+      media_id: String(entry.id),
+      title: entry.title || 'Untitled',
+      poster_path: entry.poster_path || '',
+      backdrop_path: entry.backdrop_path || '',
+      media_type: entry.isTv ? 'tv' : 'movie',
+      season: Number(entry.season || 1),
+      episode: Number(entry.episode || 1),
+      progress: Math.round(Number(entry.progress || 0)),
       updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id, (movie_data->>\'id\')' });
+    }, { onConflict: 'user_id,media_id' });
   } catch (err) {
     console.warn('[Supabase] Continue watching sync notice:', err.message);
   }
@@ -643,12 +694,24 @@ export async function fetchContinueWatchingFromCloud(userId) {
   try {
     const { data, error } = await supabase
       .from('user_continue_watching')
-      .select('movie_data')
+      .select('*')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      const cloudList = data.map(d => d.movie_data);
+      const cloudList = data.map(d => ({
+        id: isNaN(d.media_id) ? d.media_id : Number(d.media_id),
+        title: d.title,
+        name: d.title,
+        poster_path: d.poster_path,
+        backdrop_path: d.backdrop_path,
+        isTv: d.media_type === 'tv',
+        media_type: d.media_type,
+        season: d.season || 1,
+        episode: d.episode || 1,
+        progress: d.progress || 0,
+        updatedAt: new Date(d.updated_at).getTime()
+      }));
       localStorage.setItem('bingeflix_continue_watching', JSON.stringify(cloudList));
       return cloudList;
     }

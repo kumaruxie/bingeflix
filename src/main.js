@@ -3353,15 +3353,22 @@ function setupAuthSystem() {
       if (submitBtn) submitBtn.disabled = true;
 
       try {
-        const { user } = await signUpWithEmail(email, password, name, selectedAvatarKey);
+        const { user, needsEmailConfirmation } = await signUpWithEmail(email, password, name, selectedAvatarKey);
         if (user) {
-          state.currentUser = user;
-          updateUserUI();
-          closeAuthModal();
-          showToast(`Account created! Welcome, ${user.name || user.username}!`);
-          formSignup.reset();
-          if (userIcon) userIcon.innerHTML = '';
-          if (emailIcon) emailIcon.innerHTML = '';
+          if (needsEmailConfirmation) {
+            showAuthAlert('Account created! Please check your Gmail/Email to confirm your account (or disable "Confirm email" in Supabase Dashboard for instant login).', true);
+            showToast('📧 Verification link sent to your email!');
+            formSignup.reset();
+            setTimeout(() => setAuthTab('login'), 3500);
+          } else {
+            state.currentUser = user;
+            updateUserUI();
+            closeAuthModal();
+            showToast(`Account created! Welcome, ${user.name || user.username}!`);
+            formSignup.reset();
+            if (userIcon) userIcon.innerHTML = '';
+            if (emailIcon) emailIcon.innerHTML = '';
+          }
         }
       } catch (err) {
         showAuthAlert(err.message || 'Could not create account. Please try again.');
