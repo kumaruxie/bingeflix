@@ -20,8 +20,8 @@
     <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
-    <script type="module" crossorigin src="./assets/index-Dh-RuIsn.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CEDAjlC3.css">
+    <script type="module" crossorigin src="./assets/index-BdZqgvVj.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BXjd8z81.css">
   </head>
   <body>
     <div id="app">
@@ -36,15 +36,6 @@
             <img src="./assets/favicon-Ccl9gYp2.png" alt="AXON Logo" class="brand-logo-icon" onerror="this.onerror=null;this.src='./favicon.svg';" style="width: 36px; height: 36px; object-fit: contain; filter: drop-shadow(0 4px 12px rgba(229, 9, 20, 0.45));" />
             <span class="brand-name">AX<span class="text-accent">ON</span></span>
           </a>
-
-          <nav class="nav-links desktop-only">
-            <button class="nav-item active" data-category="home" id="nav-home">Home</button>
-            <button class="nav-item" data-category="bollywood" id="nav-bollywood">🔥 Bollywood</button>
-            <button class="nav-item" data-category="hollywood" id="nav-hollywood">🌟 Hollywood</button>
-            <button class="nav-item" data-category="anime" id="nav-anime">🍥 Anime</button>
-            <button class="nav-item" data-category="cartoons" id="nav-cartoons">🎨 Cartoons</button>
-            <button class="nav-item" data-category="series" id="nav-series">📺 Web Series</button>
-          </nav>
         </div>
 
         <div class="nav-right">
@@ -62,44 +53,36 @@
             <div class="search-dropdown" id="search-dropdown" style="display: none;"></div>
           </div>
 
-          <!-- Direct Watchlist Shortcut Button -->
-          <button class="btn-primary-ghost" id="nav-header-watchlist" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+          <!-- Direct Watchlist Shortcut Button (Desktop Only) -->
+          <button class="btn-primary-ghost desktop-only" id="nav-header-watchlist">
             <span>🔖 Watchlist</span>
             <span class="badge-count" id="header-watchlist-count">0</span>
           </button>
 
-          <!-- 3-Bars Hamburger Button for Mobile -->
-          <button class="hamburger-btn mobile-only" id="hamburger-btn" aria-label="Menu">
-            <span class="bar"></span>
-            <span class="bar"></span>
-            <span class="bar"></span>
-          </button>
+          <!-- User Account / Profile Button -->
+          <div class="user-auth-menu-wrapper" style="position: relative;">
+            <button class="btn-primary-ghost" id="nav-auth-btn" style="display: inline-flex; align-items: center; gap: 0.45rem; border-color: rgba(229, 9, 20, 0.4);">
+              <span id="nav-auth-icon">👤</span>
+              <span id="nav-auth-label">Sign In</span>
+            </button>
+            <!-- User Dropdown Menu -->
+            <div class="user-dropdown-menu" id="user-dropdown-menu" style="display: none;">
+              <div class="user-dropdown-header">
+                <div class="user-dropdown-avatar" id="dropdown-user-avatar">👤</div>
+                <div class="user-dropdown-info">
+                  <div class="user-dropdown-name" id="dropdown-user-name">Guest User</div>
+                  <div class="user-dropdown-email" id="dropdown-user-email">Optional Account</div>
+                </div>
+              </div>
+              <div class="user-dropdown-divider"></div>
+              <button type="button" class="user-dropdown-item" id="dropdown-btn-watchlist">🔖 My Watchlist</button>
+              <button type="button" class="user-dropdown-item" id="dropdown-btn-reset-pw">🔑 Reset Password</button>
+              <button type="button" class="user-dropdown-item" id="dropdown-btn-switch-account">🔄 Switch Account</button>
+              <button type="button" class="user-dropdown-item text-danger" id="dropdown-btn-logout">🚪 Sign Out</button>
+            </div>
+          </div>
         </div>
       </header>
-
-      <!-- Mobile Navigation Drawer -->
-      <div class="mobile-drawer-backdrop" id="mobile-drawer-backdrop" style="display: none;">
-        <div class="mobile-drawer" id="mobile-drawer">
-          <div class="drawer-header">
-            <div class="drawer-brand">
-              <img src="./assets/favicon-Ccl9gYp2.png" alt="AXON" class="drawer-logo" onerror="this.onerror=null;this.src='./favicon.svg';" style="width: 34px; height: 34px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.4));" />
-              <span>AX<span class="text-accent">ON</span></span>
-            </div>
-            <button class="drawer-close-btn" id="drawer-close">&times;</button>
-          </div>
-          <div class="drawer-links">
-            <button class="drawer-item active" data-category="home">🏠 Home</button>
-            <button class="drawer-item" data-category="bollywood">🔥 Bollywood & Hindi</button>
-            <button class="drawer-item" data-category="hollywood">🌟 Hollywood Blockbusters</button>
-            <button class="drawer-item" data-category="anime">🍥 Anime Series & Films</button>
-            <button class="drawer-item" data-category="cartoons">🎨 Cartoons & Kids</button>
-            <button class="drawer-item" data-category="series">📺 Hindi Web Series</button>
-            <button class="drawer-item" data-category="watchlist">
-              🔖 My Watchlist <span class="badge-count" id="drawer-watchlist-count">0</span>
-            </button>
-          </div>
-        </div>
-      </div>
 
       <!-- Main Application Views -->
       <main id="main-content">
@@ -140,7 +123,7 @@
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
-                  + Watchlist
+                  Watchlist
                 </button>
               </div>
             </div>
@@ -156,152 +139,496 @@
           <!-- Category & Language Filter Pills -->
           <section class="genres-pill-bar">
             <div class="genres-scroll" id="genres-container">
-              <button class="genre-pill active" data-filter="all">✨ All</button>
-              <button class="genre-pill" data-filter="bollywood">🔥 Bollywood & Hindi</button>
-              <button class="genre-pill" data-filter="hollywood">🌟 Hollywood</button>
-              <button class="genre-pill" data-filter="anime">🍥 Anime Series</button>
-              <button class="genre-pill" data-filter="cartoons">🎨 Cartoons & Kids</button>
-              <button class="genre-pill" data-filter="series">📺 Hindi Web Series</button>
-              <button class="genre-pill" data-filter="south">⚔️ South Cinema</button>
-              <button class="genre-pill" data-genre-id="28">Action</button>
-              <button class="genre-pill" data-genre-id="35">Comedy</button>
-              <button class="genre-pill" data-genre-id="878">Sci-Fi</button>
-              <button class="genre-pill" data-genre-id="53">Thriller</button>
-              <button class="genre-pill" data-genre-id="27">Horror</button>
+              <button class="genre-pill active" data-category="anime">🍥 Anime</button>
+              <button class="genre-pill" data-category="bollywood">🔥 Bollywood & Hindi</button>
+              <button class="genre-pill" data-category="hollywood">🌟 Hollywood</button>
+              <button class="genre-pill" data-category="series">📺 Web Series</button>
+              <button class="genre-pill" data-category="south">⚔️ South Cinema</button>
+              <button class="genre-pill" data-category="kids">🎨 Kids & Family</button>
+              <button class="genre-pill" data-category="action" data-genre-id="28">💥 Action</button>
+              <button class="genre-pill" data-category="comedy" data-genre-id="35">😂 Comedy</button>
+              <button class="genre-pill" data-category="scifi" data-genre-id="878">🚀 Sci-Fi</button>
+              <button class="genre-pill" data-category="thriller" data-genre-id="53">🕵️ Thriller</button>
+              <button class="genre-pill" data-category="horror" data-genre-id="27">👻 Horror</button>
             </div>
           </section>
 
-          <!-- Movie Rows Section -->
+          <!-- Movie Rows Section Organized by Dedicated Tabs -->
           <div id="movie-rows-container">
-            <!-- Bollywood & Hindi Cinema Row -->
-            <section class="movie-row-section" id="section-bollywood">
-              <div class="row-header">
-                <h2 class="row-title">🔥 Trending Bollywood & Hindi Cinema</h2>
-                <span class="row-subtitle">Latest blockbuster Hindi movies streaming in HD</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="bollywood-row">‹</button>
-                <div class="movie-cards-track" id="bollywood-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="bollywood-row">›</button>
-              </div>
-            </section>
 
-            <!-- Hollywood Blockbusters Row -->
-            <section class="movie-row-section" id="section-hollywood">
-              <div class="row-header">
-                <h2 class="row-title">🌟 Hollywood Blockbusters & Global Hits</h2>
-                <span class="row-subtitle">Worldwide top rated and trending international films</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="hollywood-row">‹</button>
-                <div class="movie-cards-track" id="hollywood-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="hollywood-row">›</button>
-              </div>
-            </section>
+            <!-- TAB 1: ANIME UNIVERSE CATALOG (EXPANDED TO 10 EPIC ROWS) -->
+            <div class="tab-catalog" id="tab-catalog-anime">
+              <!-- 1. Airing Tonight & New Releases -->
+              <section class="movie-row-section" id="section-anime-tonight">
+                <div class="row-header">
+                  <h2 class="row-title">🌙 Airing Tonight & New Releases</h2>
+                  <span class="row-subtitle">Fresh episodes, simulcasts and currently broadcasting Japanese anime</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-tonight-row">‹</button>
+                  <div class="movie-cards-track" id="anime-tonight-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-tonight-row">›</button>
+                </div>
+              </section>
 
-            <!-- Trending Anime & Series Row -->
-            <section class="movie-row-section" id="section-anime">
-              <div class="row-header">
-                <h2 class="row-title">🍥 Top Trending Anime & Series</h2>
-                <span class="row-subtitle">Japanese anime, seasons, episodes, English Sub & Dub</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="anime-row">‹</button>
-                <div class="movie-cards-track" id="anime-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="anime-row">›</button>
-              </div>
-            </section>
+              <!-- 2. Anime Top 10 Ranked All-Time -->
+              <section class="movie-row-section" id="section-anime-top10">
+                <div class="row-header">
+                  <h2 class="row-title">🏆 Top 10 Ranked Anime of All Time</h2>
+                  <span class="row-subtitle">Highest rated anime series (Attack on Titan, FMA, Death Note, Steins;Gate & more)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="anime-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-top10-row">›</button>
+                </div>
+              </section>
 
-            <!-- Cartoons & Kids Universe Row -->
-            <section class="movie-row-section" id="section-cartoons">
-              <div class="row-header">
-                <h2 class="row-title">🎨 Cartoons & Kids Classics</h2>
-                <span class="row-subtitle">Doraemon, Shin-chan, Ben 10, classic animation & cartoons</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="cartoons-row">‹</button>
-                <div class="movie-cards-track" id="cartoons-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="cartoons-row">›</button>
-              </div>
-            </section>
+              <!-- 3. Trending Shonen & Battle Action -->
+              <section class="movie-row-section" id="section-anime">
+                <div class="row-header">
+                  <h2 class="row-title">⚡ Trending Battle Shonen & Action Anime</h2>
+                  <span class="row-subtitle">Power levels, epic transformations, full seasons with Sub & Dub</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-row">‹</button>
+                  <div class="movie-cards-track" id="anime-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-row">›</button>
+                </div>
+              </section>
 
-            <!-- Hindi Web Series & Shows Row -->
-            <section class="movie-row-section" id="section-series">
-              <div class="row-header">
-                <h2 class="row-title">📺 Popular Hindi Web Series & Shows</h2>
-                <span class="row-subtitle">Binge-worthy Indian web series, drama & seasons</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="series-row">‹</button>
-                <div class="movie-cards-track" id="series-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="series-row">›</button>
-              </div>
-            </section>
+              <!-- 4. Psychological & Dark Fantasy -->
+              <section class="movie-row-section" id="section-anime-psycho">
+                <div class="row-header">
+                  <h2 class="row-title">🧠 Psychological, Mystery & Dark Fantasy</h2>
+                  <span class="row-subtitle">High-stakes intellect battles, supernatural powers and grim realities</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-psycho-row">‹</button>
+                  <div class="movie-cards-track" id="anime-psycho-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-psycho-row">›</button>
+                </div>
+              </section>
 
-            <!-- South Indian Blockbusters -->
-            <section class="movie-row-section" id="section-south">
-              <div class="row-header">
-                <h2 class="row-title">⚔️ South Indian Blockbusters</h2>
-                <span class="row-subtitle">Mass action hits from Telugu, Tamil & Kannada cinema</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="south-row">‹</button>
-                <div class="movie-cards-track" id="south-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="south-row">›</button>
-              </div>
-            </section>
+              <!-- 5. Epic Isekai, Magic & Fantasy Realms -->
+              <section class="movie-row-section" id="section-anime-isekai">
+                <div class="row-header">
+                  <h2 class="row-title">🌌 Epic Isekai, Magic & Otherworldly Realms</h2>
+                  <span class="row-subtitle">Reincarnated heroes, fantasy guilds, overpowered abilities & RPG worlds</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-isekai-row">‹</button>
+                  <div class="movie-cards-track" id="anime-isekai-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-isekai-row">›</button>
+                </div>
+              </section>
 
-            <!-- Trending Today Row -->
-            <section class="movie-row-section" id="section-trending">
-              <div class="row-header">
-                <h2 class="row-title">⚡ Global Trending Today</h2>
-                <span class="row-subtitle">Most popular films and series worldwide</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="trending-row">‹</button>
-                <div class="movie-cards-track" id="trending-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="trending-row">›</button>
-              </div>
-            </section>
+              <!-- 6. Sports, Tournaments & Adrenaline -->
+              <section class="movie-row-section" id="section-anime-sports">
+                <div class="row-header">
+                  <h2 class="row-title">🥊 High-Adrenaline Sports & Tournaments</h2>
+                  <span class="row-subtitle">Intense rivalries, court battles, passion and underdog triumphs</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-sports-row">‹</button>
+                  <div class="movie-cards-track" id="anime-sports-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-sports-row">›</button>
+                </div>
+              </section>
 
-            <!-- Popular Blockbusters Row -->
-            <section class="movie-row-section" id="section-popular">
-              <div class="row-header">
-                <h2 class="row-title">🍿 Popular Blockbusters</h2>
-                <span class="row-subtitle">Crowd favorites and trending hits</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="popular-row">‹</button>
-                <div class="movie-cards-track" id="popular-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="popular-row">›</button>
-              </div>
-            </section>
+              <!-- 7. Romance, Comedy & Slice of Life -->
+              <section class="movie-row-section" id="section-anime-romance">
+                <div class="row-header">
+                  <h2 class="row-title">💖 Heartwarming Romance, Comedy & Slice of Life</h2>
+                  <span class="row-subtitle">Feel-good comedies, school romances, tearjerkers and memorable friendships</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-romance-row">‹</button>
+                  <div class="movie-cards-track" id="anime-romance-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-romance-row">›</button>
+                </div>
+              </section>
 
-            <!-- Top Rated Classics Row -->
-            <section class="movie-row-section" id="section-top-rated">
-              <div class="row-header">
-                <h2 class="row-title">⭐ Top Rated Masterpieces</h2>
-                <span class="row-subtitle">Critically acclaimed cinema</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="top-rated-row">‹</button>
-                <div class="movie-cards-track" id="top-rated-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="top-rated-row">›</button>
-              </div>
-            </section>
+              <!-- 8. Masterpiece Anime Blockbuster Movies -->
+              <section class="movie-row-section" id="section-anime-movies">
+                <div class="row-header">
+                  <h2 class="row-title">🎬 Masterpiece Anime Blockbuster Movies</h2>
+                  <span class="row-subtitle">Oscar-winning theatrical films, Makoto Shinkai & Studio Ghibli wonders</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-movies-row">‹</button>
+                  <div class="movie-cards-track" id="anime-movies-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-movies-row">›</button>
+                </div>
+              </section>
 
-            <!-- Action Movies Row -->
-            <section class="movie-row-section" id="section-action">
-              <div class="row-header">
-                <h2 class="row-title">💥 High Octane Action</h2>
-                <span class="row-subtitle">Explosive stunts and adrenaline surges</span>
-              </div>
-              <div class="row-scroll-container">
-                <button class="scroll-arrow scroll-left" data-target="action-row">‹</button>
-                <div class="movie-cards-track" id="action-row"></div>
-                <button class="scroll-arrow scroll-right" data-target="action-row">›</button>
-              </div>
-            </section>
+              <!-- 9. Cyberpunk, Mecha & Sci-Fi Epics -->
+              <section class="movie-row-section" id="section-anime-scifi">
+                <div class="row-header">
+                  <h2 class="row-title">🤖 Cyberpunk, Mecha & Sci-Fi Epics</h2>
+                  <span class="row-subtitle">Dystopian futures, giant robots, mind uploads and neon street sagas</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-scifi-row">‹</button>
+                  <div class="movie-cards-track" id="anime-scifi-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-scifi-row">›</button>
+                </div>
+              </section>
+
+              <!-- 10. Highly Anticipated Upcoming Premieres -->
+              <section class="movie-row-section" id="section-anime-upcoming">
+                <div class="row-header">
+                  <h2 class="row-title">✨ Highly Anticipated Upcoming Premieres</h2>
+                  <span class="row-subtitle">Most awaited upcoming sequels, films, and next-season announcements</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="anime-upcoming-row">‹</button>
+                  <div class="movie-cards-track" id="anime-upcoming-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="anime-upcoming-row">›</button>
+                </div>
+              </section>
+            </div>
+
+            <!-- TAB 2: BOLLYWOOD & HINDI CATALOG -->
+            <div class="tab-catalog" id="tab-catalog-bollywood" style="display: none;">
+              <!-- Bollywood Trending -->
+              <section class="movie-row-section" id="section-bollywood">
+                <div class="row-header">
+                  <h2 class="row-title">🔥 Trending Bollywood & Hindi Cinema</h2>
+                  <span class="row-subtitle">Latest blockbuster Hindi movies streaming in HD</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="bollywood-row">‹</button>
+                  <div class="movie-cards-track" id="bollywood-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="bollywood-row">›</button>
+                </div>
+              </section>
+
+              <!-- Bollywood Top 10 -->
+              <section class="movie-row-section" id="section-bollywood-top10">
+                <div class="row-header">
+                  <h2 class="row-title">🏆 Top 10 All-Time Hindi Masterpieces</h2>
+                  <span class="row-subtitle">The highest rated Hindi cinematic treasures</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="bollywood-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="bollywood-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="bollywood-top10-row">›</button>
+                </div>
+              </section>
+
+              <!-- Desi Action & Crime Thrillers -->
+              <section class="movie-row-section" id="section-bollywood-action">
+                <div class="row-header">
+                  <h2 class="row-title">🔫 Desi Action & Crime Thrillers</h2>
+                  <span class="row-subtitle">Gritty underworld, cop dramas and revenge stories</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="bollywood-action-row">‹</button>
+                  <div class="movie-cards-track" id="bollywood-action-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="bollywood-action-row">›</button>
+                </div>
+              </section>
+
+              <!-- Heartfelt Dramas & Stories -->
+              <section class="movie-row-section" id="section-bollywood-drama">
+                <div class="row-header">
+                  <h2 class="row-title">🎭 Heartfelt Dramas & Inspiring Sagas</h2>
+                  <span class="row-subtitle">Acclaimed narratives, emotional journeys and cinematic triumphs</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="bollywood-drama-row">‹</button>
+                  <div class="movie-cards-track" id="bollywood-drama-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="bollywood-drama-row">›</button>
+                </div>
+              </section>
+
+              <!-- Bollywood Comedy Central -->
+              <section class="movie-row-section" id="section-bollywood-comedy">
+                <div class="row-header">
+                  <h2 class="row-title">😂 Bollywood Comedy Central</h2>
+                  <span class="row-subtitle">Laugh-out-loud capers, family entertainers and timeless comedies</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="bollywood-comedy-row">‹</button>
+                  <div class="movie-cards-track" id="bollywood-comedy-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="bollywood-comedy-row">›</button>
+                </div>
+              </section>
+
+              <!-- Bollywood Horror & Supernatural -->
+              <section class="movie-row-section" id="section-bollywood-horror">
+                <div class="row-header">
+                  <h2 class="row-title">👻 Bollywood Horror & Supernatural Chills</h2>
+                  <span class="row-subtitle">Spine-chilling mysteries, haunted folklore and supernatural hits (Stree 2, Bhool Bhulaiyaa, Tumbbad & more)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="bollywood-horror-row">‹</button>
+                  <div class="movie-cards-track" id="bollywood-horror-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="bollywood-horror-row">›</button>
+                </div>
+              </section>
+            </div>
+
+            <!-- TAB 3: HOLLYWOOD CATALOG -->
+            <div class="tab-catalog" id="tab-catalog-hollywood" style="display: none;">
+              <!-- Hollywood Global Hits -->
+              <section class="movie-row-section" id="section-hollywood">
+                <div class="row-header">
+                  <h2 class="row-title">🌟 Hollywood Blockbusters & Global Hits</h2>
+                  <span class="row-subtitle">Worldwide box office phenomenons and Oscar-winners</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="hollywood-row">‹</button>
+                  <div class="movie-cards-track" id="hollywood-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="hollywood-row">›</button>
+                </div>
+              </section>
+
+              <!-- Hollywood Top 10 -->
+              <section class="movie-row-section" id="section-hollywood-top10">
+                <div class="row-header">
+                  <h2 class="row-title">🏆 Top 10 Worldwide Rated Films</h2>
+                  <span class="row-subtitle">Legendary classics and highest IMDb ranked titles</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="hollywood-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="hollywood-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="hollywood-top10-row">›</button>
+                </div>
+              </section>
+
+              <!-- Sci-Fi & Multiverse -->
+              <section class="movie-row-section" id="section-hollywood-scifi">
+                <div class="row-header">
+                  <h2 class="row-title">🚀 Sci-Fi, Space & Multiverse Epics</h2>
+                  <span class="row-subtitle">Mind-bending realities, time loops and cosmic frontiers</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="hollywood-scifi-row">‹</button>
+                  <div class="movie-cards-track" id="hollywood-scifi-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="hollywood-scifi-row">›</button>
+                </div>
+              </section>
+
+              <!-- Hollywood Action & Superhero -->
+              <section class="movie-row-section" id="section-hollywood-action">
+                <div class="row-header">
+                  <h2 class="row-title">💥 Superhero & High-Stakes Action</h2>
+                  <span class="row-subtitle">Marvel, DC, and pulse-pounding thrillers</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="hollywood-action-row">‹</button>
+                  <div class="movie-cards-track" id="hollywood-action-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="hollywood-action-row">›</button>
+                </div>
+              </section>
+
+              <!-- Hollywood Thriller & Mystery -->
+              <section class="movie-row-section" id="section-hollywood-thriller">
+                <div class="row-header">
+                  <h2 class="row-title">🕵️ Mind-Bending Thrillers & Crime Mystery</h2>
+                  <span class="row-subtitle">Psychological suspense, neo-noirs and jaw-dropping plot twists (Shutter Island, Se7en, Gone Girl & more)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="hollywood-thriller-row">‹</button>
+                  <div class="movie-cards-track" id="hollywood-thriller-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="hollywood-thriller-row">›</button>
+                </div>
+              </section>
+            </div>
+
+            <!-- TAB 4: WEB SERIES CATALOG -->
+            <div class="tab-catalog" id="tab-catalog-series" style="display: none;">
+              <!-- Hindi & Indian OTT Web Series (User Priority #1) -->
+              <section class="movie-row-section" id="section-series-hindi">
+                <div class="row-header">
+                  <h2 class="row-title">🇮🇳 Top Indian & Hindi OTT Blockbusters</h2>
+                  <span class="row-subtitle">Prime Video, Netflix & Hotstar originals (Panchayat, Mirzapur, The Family Man, Sacred Games, Farzi & more)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="series-hindi-row">‹</button>
+                  <div class="movie-cards-track" id="series-hindi-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="series-hindi-row">›</button>
+                </div>
+              </section>
+
+              <!-- Web Series Top 10 -->
+              <section class="movie-row-section" id="section-series-top10">
+                <div class="row-header">
+                  <h2 class="row-title">🏆 Top 10 Binge-Worthy Series of All Time</h2>
+                  <span class="row-subtitle">Critically acclaimed masterworks with unbroken watch streaks</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="series-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="series-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="series-top10-row">›</button>
+                </div>
+              </section>
+
+              <!-- Global Hits & Trending International Shows -->
+              <section class="movie-row-section" id="section-series">
+                <div class="row-header">
+                  <h2 class="row-title">📺 Global Hits & Trending International Shows</h2>
+                  <span class="row-subtitle">Worldwide television phenomenons (Breaking Bad, Game of Thrones, Stranger Things, The Boys)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="series-row">‹</button>
+                  <div class="movie-cards-track" id="series-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="series-row">›</button>
+                </div>
+              </section>
+
+              <!-- Crime & Mystery Series -->
+              <section class="movie-row-section" id="section-series-crime">
+                <div class="row-header">
+                  <h2 class="row-title">🕵️ Dark Crime, Mafia & Investigative Whodunits</h2>
+                  <span class="row-subtitle">Gripping investigative procedurals, gritty cartels and suspenseful puzzles (True Detective, Sherlock, Mindhunter, Money Heist)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="series-crime-row">‹</button>
+                  <div class="movie-cards-track" id="series-crime-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="series-crime-row">›</button>
+                </div>
+              </section>
+
+              <!-- Sci-Fi, Fantasy & Thriller Sagas -->
+              <section class="movie-row-section" id="section-series-scifi">
+                <div class="row-header">
+                  <h2 class="row-title">🚀 Sci-Fi, Fantasy & Thriller Sagas</h2>
+                  <span class="row-subtitle">Mind-bending time loops, dystopian futures and epic worldbuilding (Dark, The Last of Us, Severance, Black Mirror)</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="series-scifi-row">‹</button>
+                  <div class="movie-cards-track" id="series-scifi-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="series-scifi-row">›</button>
+                </div>
+              </section>
+            </div>
+
+            <!-- TAB 5: SOUTH CINEMA CATALOG -->
+            <div class="tab-catalog" id="tab-catalog-south" style="display: none;">
+              <!-- South Indian Hindi Dubbed Hits -->
+              <section class="movie-row-section" id="section-south">
+                <div class="row-header">
+                  <h2 class="row-title">⚔️ South Indian Blockbusters (Hindi Dubbed)</h2>
+                  <span class="row-subtitle">Mass action spectacles from Telugu, Tamil & Kannada cinema</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="south-row">‹</button>
+                  <div class="movie-cards-track" id="south-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="south-row">›</button>
+                </div>
+              </section>
+
+              <!-- South Top 10 -->
+              <section class="movie-row-section" id="section-south-top10">
+                <div class="row-header">
+                  <h2 class="row-title">🏆 Top 10 Pan-India Action Hits</h2>
+                  <span class="row-subtitle">Record-breaking box office mammoths dubbed in Hindi</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="south-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="south-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="south-top10-row">›</button>
+                </div>
+              </section>
+
+              <!-- South Mass Action & Revenge -->
+              <section class="movie-row-section" id="section-south-action">
+                <div class="row-header">
+                  <h2 class="row-title">💥 High-Octane Action Spectacles</h2>
+                  <span class="row-subtitle">Explosive mass entries, heroic showdowns and thrilling action</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="south-action-row">‹</button>
+                  <div class="movie-cards-track" id="south-action-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="south-action-row">›</button>
+                </div>
+              </section>
+            </div>
+
+            <!-- TAB 6: KIDS & FAMILY CATALOG -->
+            <div class="tab-catalog" id="tab-catalog-kids" style="display: none;">
+              <!-- Cartoons & Animated Shows -->
+              <section class="movie-row-section" id="section-kids-cartoons">
+                <div class="row-header">
+                  <h2 class="row-title">🎨 Cartoons & Animated Adventures</h2>
+                  <span class="row-subtitle">Evergreen favorites: Doraemon, Ben 10, Rick & Morty, and anime toons</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="kids-cartoons-row">‹</button>
+                  <div class="movie-cards-track" id="kids-cartoons-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="kids-cartoons-row">›</button>
+                </div>
+              </section>
+
+              <!-- Kids Top 10 -->
+              <section class="movie-row-section" id="section-kids-top10">
+                <div class="row-header">
+                  <h2 class="row-title">🏆 Top 10 Family & Animated Classics</h2>
+                  <span class="row-subtitle">Beloved animated movies for the whole family</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="kids-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="kids-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="kids-top10-row">›</button>
+                </div>
+              </section>
+
+              <!-- Animated Superhero & Fun -->
+              <section class="movie-row-section" id="section-kids-hero">
+                <div class="row-header">
+                  <h2 class="row-title">🦸 Superhero Toons & Family Fun</h2>
+                  <span class="row-subtitle">Spider-Verse, Kung Fu Panda, Minions and animated heroics</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="kids-hero-row">‹</button>
+                  <div class="movie-cards-track" id="kids-hero-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="kids-hero-row">›</button>
+                </div>
+              </section>
+            </div>
+
+            <!-- TAB 7: DYNAMIC GENRE CATALOG (Action, Comedy, Sci-Fi, Thriller, Horror) -->
+            <div class="tab-catalog" id="tab-catalog-genre" style="display: none;">
+              <section class="movie-row-section" id="section-genre-trending">
+                <div class="row-header">
+                  <h2 class="row-title" id="genre-title-trending">🔥 Trending Cinema</h2>
+                  <span class="row-subtitle" id="genre-subtitle-trending">Most popular titles in this genre</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="genre-trending-row">‹</button>
+                  <div class="movie-cards-track" id="genre-trending-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="genre-trending-row">›</button>
+                </div>
+              </section>
+
+              <section class="movie-row-section" id="section-genre-top10">
+                <div class="row-header">
+                  <h2 class="row-title" id="genre-title-top10">🏆 Top 10 Ranked</h2>
+                  <span class="row-subtitle" id="genre-subtitle-top10">Highest rated masterpieces</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="genre-top10-row">‹</button>
+                  <div class="movie-cards-track top10-track" id="genre-top10-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="genre-top10-row">›</button>
+                </div>
+              </section>
+
+              <section class="movie-row-section" id="section-genre-popular">
+                <div class="row-header">
+                  <h2 class="row-title" id="genre-title-popular">🍿 Crowd Favorites</h2>
+                  <span class="row-subtitle" id="genre-subtitle-popular">Acclaimed audience hits</span>
+                </div>
+                <div class="row-scroll-container">
+                  <button class="scroll-arrow scroll-left" data-target="genre-popular-row">‹</button>
+                  <div class="movie-cards-track" id="genre-popular-row"></div>
+                  <button class="scroll-arrow scroll-right" data-target="genre-popular-row">›</button>
+                </div>
+              </section>
+            </div>
+
           </div>
         </div>
 
@@ -323,124 +650,42 @@
           <!-- Cinematic Video Player Screen -->
           <div class="cinema-player-wrapper">
             <div class="cinema-screen" id="cinema-screen">
-              <!-- Video / Trailer iFrame will be dynamically mounted here -->
-
-              <!-- In-Player Floating Overlay Controls (100% Inside Video Screen) -->
-              <div class="player-invideo-overlay" id="player-invideo-overlay">
-                <button type="button" class="invideo-btn" id="btn-inplayer-ar" title="Click to Cycle Aspect Ratio (16:9, 21:9, 4:3, Fill)">
-                  <span class="invideo-icon">📐</span>
-                  <span id="inplayer-ar-label">16:9</span>
-                </button>
-
-                <div class="invideo-brightness-control">
-                  <button type="button" class="invideo-btn" id="btn-inplayer-bright" title="Screen Brightness (Click to toggle menu)">
-                    <span class="invideo-icon">☀️</span>
-                    <span id="inplayer-bright-label">100%</span>
-                  </button>
-                  <div class="invideo-bright-dropdown" id="inplayer-bright-menu" style="display: none;">
-                    <span class="bright-menu-title">Brightness</span>
-                    <input type="range" id="inplayer-brightness-slider" min="30" max="150" value="100" />
-                    <div class="bright-quick-presets">
-                      <button type="button" data-val="60">60%</button>
-                      <button type="button" data-val="100" class="active">100%</button>
-                      <button type="button" data-val="140">140%</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Floating On-Screen Gesture HUD (Brightness indicator) -->
-              <div class="player-gesture-hud" id="player-gesture-hud" style="display: none;">
-                <span class="hud-icon" id="hud-icon">☀️</span>
-                <span class="hud-value" id="hud-value">100%</span>
-              </div>
+              <!-- Video / Trailer iFrame will be dynamically mounted here with direct native controls -->
             </div>
             
-            <!-- Stream Server Switcher -->
+            <!-- Stream Server Switcher (Dropdown on Mobile & Desktop) -->
             <div class="player-source-bar">
-              <div class="source-buttons" id="source-buttons-container">
-                <button class="source-btn active" data-server="vidlink" id="btn-src-vidlink" title="Server 1 - VidLink (Instant Ultra HD)">
-                  <span class="src-icon">⚡</span> Server 1 (VidLink)
-                </button>
-                <button class="source-btn" data-server="html5" id="btn-src-html5" title="Server 2 - MultiEmbed (Hindi Dubbed & Multi-Audio)">
-                  <span class="src-icon">👑</span> Server 2 (MultiEmbed)
-                </button>
-                <button class="source-btn" data-server="smashy" id="btn-src-smashy" title="Server 3 - AutoEmbed (Anime Sub & Dub / Multi-Server)">
-                  <span class="src-icon">🍥</span> Server 3 (AutoEmbed)
-                </button>
-                <button class="source-btn" data-server="vidsrc" id="btn-src-vidsrc" title="Server 4 - VidSrc PM (4K Ultra)">
-                  <span class="src-icon">🌟</span> Server 4 (VidSrc PM)
-                </button>
-                <button class="source-btn" data-server="2embed" id="btn-src-2embed" title="Server 5 - 2Embed (Cartoons & Archives)">
-                  <span class="src-icon">📺</span> Server 5 (2Embed)
-                </button>
-                <button class="source-btn" data-server="trailer" id="btn-src-trailer" title="Official HD Trailer">
-                  <span class="src-icon">🎞️</span> Trailer
-                </button>
+              <div class="player-server-select-box">
+                <label for="player-server-select" class="player-server-label">
+                  <span class="server-label-icon">⚡</span>
+                  <span class="server-label-text">Server:</span>
+                </label>
+                <div class="player-server-select-wrap">
+                  <select id="player-server-select" class="player-server-select" aria-label="Select Streaming Server">
+                    <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Sound)</option>
+                    <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
+                    <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
+                    <option value="2embed">📺 Server 4: 2Embed (Archive Mirror)</option>
+                    <option value="smashy">☁️ Server 5: MegaCloud (SmashyStream)</option>
+                    <option value="trailer">🎞️ Server 6: Official HD Trailer</option>
+                  </select>
+                </div>
               </div>
               <div class="source-right">
+                <button class="btn-cta btn-watchlist small" id="player-watchlist-btn">
+                  🔖 Watchlist
+                </button>
                 <button type="button" class="source-btn btn-next-ep-player" id="player-next-ep-btn" style="display: none;" title="Play Next Episode">
                   <span>Next Ep ›</span>
-                </button>
-                <button class="btn-cta btn-watchlist small" id="player-watchlist-btn">
-                  + Add to Watchlist
                 </button>
                 <button class="source-btn popout-btn" id="player-external-btn" title="Open Stream in Full Tab">
                   ↗ Pop-out
                 </button>
               </div>
             </div>
-
-            <!-- Series & Anime Season Breakdown & Episode Controls -->
-            <div class="series-controls-container" id="player-series-controls" style="display: none;">
-              <!-- Season Breakdown Header -->
-              <div class="series-controls-top">
-                <div class="season-selector-box">
-                  <span class="season-icon">📺</span>
-                  <label for="season-select" class="season-label">Season:</label>
-                  <select id="season-select" class="season-dropdown"></select>
-                </div>
-                
-                <div class="season-info-box" id="season-info-box">
-                  <span class="season-meta-badge" id="season-meta-badge">10 Episodes • 2024</span>
-                </div>
-
-                <div class="episodes-orientation-actions">
-                  <!-- View Mode Switcher: List vs Grid -->
-                  <div class="view-mode-toggle">
-                    <button type="button" class="view-mode-btn active" id="btn-ep-list-view" title="Detailed List View">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                      List
-                    </button>
-                    <button type="button" class="view-mode-btn" id="btn-ep-grid-view" title="Card Grid View">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                      Grid
-                    </button>
-                  </div>
-
-                  <div class="now-playing-episode-badge" id="now-playing-episode-badge">S1 : E1</div>
-                  <button type="button" class="btn-next-ep-quick" id="btn-next-ep-quick" title="Play Next Episode">
-                    Next Episode ›
-                  </button>
-                </div>
-              </div>
-
-              <!-- Season Breakdown Synopsis / Storyline -->
-              <div class="season-breakdown-desc" id="season-breakdown-desc" style="display: none;"></div>
-
-              <!-- Episode Range Filter Tabs (for anime & series with 15+ episodes) -->
-              <div class="episode-range-tabs" id="episode-range-tabs" style="display: none;"></div>
-
-              <!-- Episodes Container with List/Grid Orientation -->
-              <div class="episodes-container" id="episodes-container">
-                <div class="episodes-cards-track mode-list" id="episodes-track">
-                  <!-- Episodes loaded dynamically -->
-                </div>
-              </div>
-            </div>
           </div>
 
-          <!-- Movie Details & Synopsis Section Below Player -->
+          <!-- Movie Details & Synopsis Section Below Player (Title, Badges, Storyline) -->
           <div class="player-details-container">
             <div class="player-meta-row">
               <div class="player-meta-left">
@@ -464,8 +709,59 @@
               <h3 class="section-label">Storyline / Overview</h3>
               <p class="player-overview-text" id="player-overview">Movie overview synopsis...</p>
             </div>
+          </div>
 
-            <!-- Recommended Movies (More Like This) Below Player -->
+          <!-- Series & Anime Season Breakdown & Episode Controls -->
+          <div class="series-controls-container" id="player-series-controls" style="display: none;">
+            <!-- Season Breakdown Header -->
+            <div class="series-controls-top">
+              <div class="season-selector-box">
+                <span class="season-icon">📺</span>
+                <label for="season-select" class="season-label">Season:</label>
+                <select id="season-select" class="season-dropdown"></select>
+              </div>
+              
+              <div class="season-info-box" id="season-info-box">
+                <span class="season-meta-badge" id="season-meta-badge">10 Episodes • 2024</span>
+              </div>
+
+              <div class="episodes-orientation-actions">
+                <!-- View Mode Switcher: List vs Grid -->
+                <div class="view-mode-toggle">
+                  <button type="button" class="view-mode-btn active" id="btn-ep-list-view" title="Detailed List View">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    List
+                  </button>
+                  <button type="button" class="view-mode-btn" id="btn-ep-grid-view" title="Card Grid View">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                    Grid
+                  </button>
+                </div>
+
+                <div class="now-playing-episode-badge" id="now-playing-episode-badge">S1 : E1</div>
+                <button type="button" class="btn-next-ep-quick" id="btn-next-ep-quick" title="Play Next Episode">
+                  Next Episode ›
+                </button>
+              </div>
+            </div>
+
+            <!-- Season Breakdown Synopsis / Storyline -->
+            <div class="season-breakdown-desc" id="season-breakdown-desc" style="display: none;"></div>
+
+            <!-- Episode Range Filter Tabs (for anime & series with 15+ episodes) -->
+            <div class="episode-range-tabs" id="episode-range-tabs" style="display: none;"></div>
+
+            <!-- Episodes Container with List/Grid Orientation -->
+            <div class="episodes-container" id="episodes-container">
+              <div class="episodes-cards-track mode-list" id="episodes-track">
+                <!-- Episodes loaded dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Recommended Movies & Similar Section Below Player -->
+          <div class="player-recommendations-wrapper">
+            <!-- Recommended Movies (More Like This) -->
             <div class="player-similar-section">
               <div class="row-header">
                 <h2 class="row-title">🍿 More Like This</h2>
@@ -507,12 +803,105 @@
           <span style="font-family: var(--font-heading); font-size: 1.35rem; font-weight: 800; color: #fff;">AX<span class="text-accent">ON</span></span>
         </div>
         <p style="color: var(--text-muted); font-size: 0.84rem; max-width: 480px; margin: 0 auto 1rem; line-height: 1.6;">
-          Stream movies, Bollywood, Hollywood blockbusters, anime, web series, and cartoons directly with multi-server playback.
+          Stream movies, Bollywood, Hollywood blockbusters, anime, and web series directly with multi-server playback.
         </p>
         <p style="color: var(--text-muted); font-size: 0.75rem;">
           &copy; 2026 AXON &bull; Made with &hearts; for movie lovers
         </p>
       </footer>
+
+      <!-- Clean Optional Email + Password Auth Modal (No Google Auth) -->
+      <div class="modal-backdrop" id="auth-modal" style="display: none;">
+        <div class="auth-card" style="max-width: 440px; padding: 2.2rem 2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.4rem;">
+            <div>
+              <h2 id="auth-modal-title" style="font-size: 1.4rem; margin: 0; font-family: var(--font-heading); color: #fff;">Sign In to AXON</h2>
+              <p id="auth-modal-subtitle" style="margin: 0.25rem 0 0; font-size: 0.84rem; color: var(--text-secondary);">Access your personalized watchlist and preferences</p>
+            </div>
+            <button type="button" class="search-clear-btn" id="close-auth-modal-btn" style="display: block; font-size: 1.5rem; color: var(--text-muted);">&times;</button>
+          </div>
+
+          <!-- Auth Status Alert -->
+          <div id="auth-alert-box" class="auth-alert-box" style="display: none;"></div>
+
+          <!-- TAB 1: SIGN IN FORM -->
+          <form id="auth-form-login" class="auth-form-body">
+            <div class="form-group">
+              <label for="login-email">Email or Username</label>
+              <input type="text" id="login-email" class="auth-input" placeholder="Enter your email or username" required autocomplete="username" />
+            </div>
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <label for="login-password" style="margin: 0;">Password</label>
+                <button type="button" class="btn-link-subtle" id="link-to-forgot-password" style="font-size: 0.78rem;">Forgot Password?</button>
+              </div>
+              <input type="password" id="login-password" class="auth-input" placeholder="Enter your password" required autocomplete="current-password" />
+            </div>
+            <button type="submit" class="btn-cta auth-submit-btn" id="btn-submit-login">
+              Sign In
+            </button>
+            <p class="auth-switch-note">
+              New to AXON? <button type="button" class="btn-link" id="link-to-signup">Create free account</button>
+            </p>
+            <div class="guest-banner">
+              <span>Note: An account is completely <strong>optional</strong>. You can stream everything as a guest anytime!</span>
+            </div>
+          </form>
+
+          <!-- TAB 2: CREATE ACCOUNT FORM -->
+          <form id="auth-form-signup" class="auth-form-body" style="display: none;">
+            <div class="form-group">
+              <label for="signup-name">Display Name</label>
+              <input type="text" id="signup-name" class="auth-input" placeholder="e.g. Tanjiro" required />
+            </div>
+            <div class="form-group">
+              <label for="signup-email">Email Address or ID</label>
+              <input type="email" id="signup-email" class="auth-input" placeholder="user@example.com" required autocomplete="email" />
+            </div>
+            <div class="form-group">
+              <label for="signup-password">Password</label>
+              <input type="password" id="signup-password" class="auth-input" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password" />
+            </div>
+
+            <!-- Anime Profile Avatar Picker -->
+            <div class="form-group" style="margin-top: 0.5rem;">
+              <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                <span>Choose Profile Anime Icon</span>
+                <span id="selected-avatar-name" style="color: var(--accent-red); font-weight: 700; font-size: 0.8rem;">Goku</span>
+              </label>
+              <div class="avatar-grid" id="auth-avatar-grid">
+                <!-- Dynamically populated with 25+ Anime Avatars -->
+              </div>
+            </div>
+
+            <button type="submit" class="btn-cta auth-submit-btn" id="btn-submit-signup">
+              Create Account
+            </button>
+            <p class="auth-switch-note">
+              Already have an account? <button type="button" class="btn-link" id="link-to-login">Sign In</button>
+            </p>
+          </form>
+
+          <!-- TAB 3: RESET PASSWORD FORM -->
+          <form id="auth-form-reset" class="auth-form-body" style="display: none;">
+            <div class="form-group">
+              <label for="reset-email">Registered Email Address</label>
+              <input type="email" id="reset-email" class="auth-input" placeholder="user@example.com" required autocomplete="email" />
+            </div>
+            <div class="form-group">
+              <label for="reset-new-password">New Password</label>
+              <input type="password" id="reset-new-password" class="auth-input" placeholder="Enter new password (min 6 chars)" minlength="6" required autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn-cta auth-submit-btn" id="btn-submit-reset">
+              Update Password
+            </button>
+            <p class="auth-switch-note">
+              Remembered your password? <button type="button" class="btn-link" id="link-reset-to-login">Back to Sign In</button>
+            </p>
+          </form>
+
+        </div>
+      </div>
 
 
 

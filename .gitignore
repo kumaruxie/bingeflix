@@ -31,6 +31,7 @@ capacitor.config.json.timestamp-*
 
 # Backend scratch / local server
 backend/
+scratch/
 *.suo
 *.ntvs*
 *.njsproj
