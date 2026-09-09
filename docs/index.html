@@ -20,8 +20,8 @@
     <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
-    <script type="module" crossorigin src="./assets/index-BdPJNh-8.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Ct6u4yn0.css">
+    <script type="module" crossorigin src="./assets/index-tlaEYNjN.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Dnc_OMkt.css">
   </head>
   <body>
     <div id="app">
@@ -87,10 +87,6 @@
                 <button type="button" class="user-dropdown-item" id="dropdown-btn-profile-settings">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                   <span>Profile Settings</span>
-                </button>
-                <button type="button" class="user-dropdown-item" id="dropdown-btn-switch-account">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                  <span>Switch Account</span>
                 </button>
                 <div class="user-dropdown-divider"></div>
                 <button type="button" class="user-dropdown-item text-danger" id="dropdown-btn-logout">
@@ -681,6 +677,7 @@
 
           <!-- Cinematic Video Player Screen -->
           <div class="cinema-player-wrapper">
+            <div class="cinema-ambient-glow" id="cinema-ambient-glow"></div>
             <div class="cinema-screen" id="cinema-screen">
               <!-- Video / Trailer iFrame will be dynamically mounted here with direct native controls -->
             </div>
@@ -697,18 +694,24 @@
                     <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Sound)</option>
                     <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
                     <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-                    <option value="2embed">📺 Server 4: 2Embed (Archive Mirror)</option>
+                    <option value="2embed">📺 Server 4: VidSrc Buzz (Multi-Source 4K)</option>
                     <option value="smashy">☁️ Server 5: MegaCloud (SmashyStream)</option>
                     <option value="trailer">🎞️ Server 6: Official HD Trailer</option>
                   </select>
                 </div>
               </div>
               <div class="source-right">
-                <button class="btn-cta btn-watchlist small" id="player-watchlist-btn">
-                  🔖 Watchlist
+                <button type="button" class="btn-cta btn-watchlist small btn-prev-ep-player" id="player-prev-ep-btn" style="display: none;" title="Play Previous Episode">
+                  <span>‹ Prev Ep</span>
                 </button>
                 <button type="button" class="btn-cta btn-watchlist small btn-next-ep-player" id="player-next-ep-btn" style="display: none;" title="Play Next Episode">
                   <span>Next Ep ›</span>
+                </button>
+                <button type="button" class="btn-cta btn-watchlist small btn-cinema-focus" id="player-theater-btn" title="Cinema Focus Mode (Blur Background)">
+                  <span id="theater-icon">💡</span> <span id="theater-text">Cinema Focus</span>
+                </button>
+                <button class="btn-cta btn-watchlist small" id="player-watchlist-btn">
+                  🔖 Watchlist
                 </button>
                 <button class="btn-cta btn-watchlist small popout-btn" id="player-external-btn" title="Open Stream in Full Tab">
                   ↗ Pop-out

@@ -1203,12 +1203,23 @@ function createMovieCard(movie, isHistory = false) {
   const rating = movie.vote_average ? movie.vote_average.toFixed(1) : 'NR';
   const inWatchlist = isMovieInWatchlist(movie.id);
   const isTv = movie.isTv || !!movie.first_air_date;
+  const isAnimeItem = Boolean(movie.isAnime || isStrictAnime(movie));
+  let animeBadgesHtml = '';
+  if (isAnimeItem) {
+    animeBadgesHtml = `
+      <div class="anime-corner-badges">
+        <span class="anime-badge-sub" title="Japanese Audio with English Subtitles">SUB</span>
+        <span class="anime-badge-dub" title="English / Hindi Dubbed Available">DUB</span>
+      </div>
+    `;
+  }
 
   card.innerHTML = `
     <div class="card-poster-wrapper">
       ${isHistory ? `<button class="card-btn-delete-history" title="Delete from History" data-movie-id="${movie.id}">✕</button>` : ''}
       <img class="card-poster" src="${posterUrl}" alt="${title}" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1578632767115-351597cf2477?w=500&q=80';" />
       <span class="card-rating-tag">★ ${rating}</span>
+      ${animeBadgesHtml}
       <div class="card-overlay">
         <div class="card-actions">
           <button class="card-btn card-btn-play" title="Play">
@@ -1497,11 +1508,14 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   let currentSeasonEpisodes = [];
 
   const playerNextEpBtn = document.getElementById('player-next-ep-btn');
+  const playerPrevEpBtn = document.getElementById('player-prev-ep-btn');
   const quickNextEpBtn = document.getElementById('btn-next-ep-quick');
+  const playerTheaterBtn = document.getElementById('player-theater-btn');
 
   function updateNextEpButtonState() {
     if (!isTv) {
       if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
+      if (playerPrevEpBtn) playerPrevEpBtn.style.display = 'none';
       if (quickNextEpBtn) quickNextEpBtn.style.display = 'none';
       return;
     }
@@ -1509,6 +1523,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     const hasNextInSeason = currentIdx !== -1 && currentIdx < currentSeasonEpisodes.length - 1;
     const hasNextSeason = seasonSelect && seasonSelect.selectedIndex < seasonSelect.options.length - 1;
 
+    // Next Episode Button State
     if (hasNextInSeason || hasNextSeason) {
       const nextEpObj = hasNextInSeason ? currentSeasonEpisodes[currentIdx + 1] : null;
       const nextEpNum = nextEpObj ? (nextEpObj.relative_number || nextEpObj.episode_number) : 1;
@@ -1523,6 +1538,20 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     } else {
       if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
       if (quickNextEpBtn) quickNextEpBtn.style.display = 'none';
+    }
+
+    // Previous Episode Button State
+    const hasPrevInSeason = currentIdx > 0;
+    const hasPrevSeason = seasonSelect && seasonSelect.selectedIndex > 0;
+    if (hasPrevInSeason || hasPrevSeason) {
+      const prevEpObj = hasPrevInSeason ? currentSeasonEpisodes[currentIdx - 1] : null;
+      const prevEpNum = prevEpObj ? (prevEpObj.relative_number || prevEpObj.episode_number) : 1;
+      if (playerPrevEpBtn) {
+        playerPrevEpBtn.style.display = 'inline-flex';
+        playerPrevEpBtn.innerHTML = `<span>‹ Prev Ep (E${prevEpNum})</span>`;
+      }
+    } else {
+      if (playerPrevEpBtn) playerPrevEpBtn.style.display = 'none';
     }
   }
 
@@ -1551,8 +1580,48 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     }
   }
 
+  function advanceToPrevEpisode() {
+    if (!isTv) return;
+    const currentIdx = currentSeasonEpisodes.findIndex(e => e.episode_number === state.currentEpisode || e.relative_number === state.currentEpisode);
+    const prevEpObj = currentIdx > 0 ? currentSeasonEpisodes[currentIdx - 1] : null;
+
+    if (prevEpObj) {
+      state.currentEpisode = prevEpObj.relative_number || prevEpObj.episode_number;
+      episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
+      window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
+      const playSeason = prevEpObj.season_number || state.currentSeason;
+      mountVideoPlayer(details, state.activeSourceType, playSeason, prevEpObj.episode_number);
+      renderCurrentEpisodesOrientation();
+      updateNextEpButtonState();
+      showToast(`Playing Previous: S${state.currentSeason} : E${state.currentEpisode} - ${prevEpObj.name}`);
+    } else if (seasonSelect && seasonSelect.selectedIndex > 0) {
+      seasonSelect.selectedIndex -= 1;
+      seasonSelect.dispatchEvent(new Event('change'));
+      showToast('Switched to previous season! 📺');
+    }
+  }
+
   if (playerNextEpBtn) playerNextEpBtn.onclick = advanceToNextEpisode;
+  if (playerPrevEpBtn) playerPrevEpBtn.onclick = advanceToPrevEpisode;
   if (quickNextEpBtn) quickNextEpBtn.onclick = advanceToNextEpisode;
+
+  // Cinema Focus Mode (Background Blur) Toggle (Mukesh 444 Feature)
+  if (playerTheaterBtn) {
+    playerTheaterBtn.onclick = () => {
+      const isFocused = document.body.classList.toggle('cinema-focus-mode');
+      const iconEl = document.getElementById('theater-icon');
+      const textEl = document.getElementById('theater-text');
+      if (isFocused) {
+        if (iconEl) iconEl.textContent = '🌟';
+        if (textEl) textEl.textContent = 'Focus ON';
+        showToast('💡 Cinema Focus On: Background blurred for theater view!');
+      } else {
+        if (iconEl) iconEl.textContent = '💡';
+        if (textEl) textEl.textContent = 'Cinema Focus';
+        showToast('💡 Normal mode restored');
+      }
+    };
+  }
 
   if (btnListView && btnGridView) {
     btnListView.onclick = () => {
@@ -2292,12 +2361,12 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   } else if (type === '2embed') {
     // ---------------------------------------------------------------
-    // 📺 Server 4: 2Embed (Archive & Mirror HD)
+    // 📺 Server 4: VidSrc Buzz (Direct Cloud 4K - Zero Sandbox Block)
     // ---------------------------------------------------------------
-    badgeLabel = `📺 Server 4 (2Embed) • ${isTv ? `S${season} : E${episode}` : 'Archive HD'}`;
+    badgeLabel = `📺 Server 4 (VidSrc Buzz) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K Mirror'}`;
     streamUrl = isTv
-      ? `https://www.2embed.cc/embedtv/${item.id}&s=${season}&e=${episode}`
-      : `https://www.2embed.cc/embed/${item.id}`;
+      ? `https://vidsrc.buzz/embed/tv/${item.id}/${season}/${episode}?autoplay=true`
+      : `https://vidsrc.buzz/embed/movie/${item.id}?autoplay=true`;
 
   } else if (type === 'smashy') {
     // ---------------------------------------------------------------
@@ -2406,6 +2475,12 @@ export function setupInPlayerControls() {
 }
 
 function stopVideoPlayback() {
+  document.body.classList.remove('cinema-focus-mode');
+  const iconEl = document.getElementById('theater-icon');
+  const textEl = document.getElementById('theater-text');
+  if (iconEl) iconEl.textContent = '💡';
+  if (textEl) textEl.textContent = 'Cinema Focus';
+
   if (state.activePlayback) {
     savePlaybackProgress(state.activePlayback, true);
     state.activePlayback = null;
@@ -2834,14 +2909,31 @@ function setupEventListeners() {
     });
   }
 
-  // Spacebar Play/Pause handler
+  // Keyboard Shortcuts Handler (Space: Play/Pause, C: Cinema Focus, Esc: Exit Focus)
   window.addEventListener('keydown', (e) => {
-    if (e.key === ' ' || e.code === 'Space') {
-      const tag = (document.activeElement && document.activeElement.tagName) || '';
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-        return;
-      }
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      return;
+    }
 
+    // 'C' toggles Cinema Focus Mode
+    if (e.key === 'c' || e.key === 'C') {
+      const playerView = document.getElementById('player-view');
+      if (playerView && playerView.style.display !== 'none') {
+        const theaterBtn = document.getElementById('player-theater-btn');
+        if (theaterBtn) theaterBtn.click();
+      }
+    }
+
+    // 'Escape' exits Cinema Focus Mode
+    if (e.key === 'Escape') {
+      if (document.body.classList.contains('cinema-focus-mode')) {
+        const theaterBtn = document.getElementById('player-theater-btn');
+        if (theaterBtn) theaterBtn.click();
+      }
+    }
+
+    if (e.key === ' ' || e.code === 'Space') {
       e.preventDefault();
 
       const playerView = document.getElementById('player-view');
@@ -3027,10 +3119,8 @@ function setupAuthSystem() {
     }
   });
 
-  // Dropdown menu buttons
   const ddWatchlist = document.getElementById('dropdown-btn-watchlist');
   const ddProfileSettings = document.getElementById('dropdown-btn-profile-settings');
-  const ddSwitch = document.getElementById('dropdown-btn-switch-account');
   const ddLogout = document.getElementById('dropdown-btn-logout');
 
   if (ddWatchlist) {
@@ -3050,12 +3140,6 @@ function setupAuthSystem() {
       if (typeof window.openProfileSettingsModal === 'function') {
         window.openProfileSettingsModal();
       }
-    };
-  }
-  if (ddSwitch) {
-    ddSwitch.onclick = () => {
-      if (dropdownMenu) dropdownMenu.style.display = 'none';
-      openAuthModal('login');
     };
   }
   if (ddLogout) {

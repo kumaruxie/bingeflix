@@ -124,6 +124,11 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
     throw new Error('Registration failed. Please check your details.');
   }
 
+  // Supabase returns empty identities array if user with this email already exists
+  if (Array.isArray(authUser.identities) && authUser.identities.length === 0) {
+    throw new Error(`An account with the email "${cleanEmail}" already exists. Please sign in instead.`);
+  }
+
   const userProfile = {
     id: authUser.id,
     email: cleanEmail,
@@ -134,16 +139,16 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
   };
 
   // Upsert profile in public.profiles table
-  try {
-    await supabase.from('profiles').upsert({
-      id: authUser.id,
-      email: cleanEmail,
-      username: cleanName,
-      avatar_url: avatar,
-      updated_at: new Date().toISOString()
-    });
-  } catch (err) {
-    console.warn('[Supabase] Profile creation warning:', err);
+  const { error: profileErr } = await supabase.from('profiles').upsert({
+    id: authUser.id,
+    email: cleanEmail,
+    username: cleanName,
+    avatar_url: avatar,
+    updated_at: new Date().toISOString()
+  });
+
+  if (profileErr) {
+    console.warn('[Supabase] Profile creation warning:', profileErr.message);
   }
 
   localStorage.setItem('bingeflix_current_user', JSON.stringify(userProfile));

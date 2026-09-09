@@ -5556,6 +5556,162 @@ body {
   }
 }
 
+/* ==========================================================================
+   Cinema Focus Mode / Background Blur Engine (Mukesh 444 Feature)
+   ========================================================================== */
+body.cinema-focus-mode {
+  overflow-x: hidden;
+}
+
+body.cinema-focus-mode .navbar,
+body.cinema-focus-mode .player-top-nav,
+body.cinema-focus-mode .player-details-container,
+body.cinema-focus-mode .series-controls-container,
+body.cinema-focus-mode .player-similar-container,
+body.cinema-focus-mode .footer,
+body.cinema-focus-mode #genres-container,
+body.cinema-focus-mode #movie-rows-container,
+body.cinema-focus-mode #hero-spotlight {
+  filter: blur(12px) brightness(0.22) !important;
+  opacity: 0.25 !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  transition: filter 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease !important;
+}
+
+body.cinema-focus-mode .cinema-player-wrapper {
+  position: relative !important;
+  z-index: 9999 !important;
+  box-shadow: 0 0 65px rgba(229, 9, 20, 0.4), 0 25px 90px rgba(0, 0, 0, 0.95) !important;
+  border-radius: 16px !important;
+  transform: scale(1.01) !important;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Ambient Backlight Glow behind player */
+.cinema-ambient-glow {
+  display: none;
+  position: absolute;
+  top: -18px;
+  left: -18px;
+  right: -18px;
+  bottom: -18px;
+  background: radial-gradient(ellipse at center, rgba(229, 9, 20, 0.35) 0%, rgba(139, 92, 246, 0.18) 45%, transparent 72%);
+  filter: blur(40px);
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 24px;
+}
+
+body.cinema-focus-mode .cinema-ambient-glow {
+  display: block;
+  animation: ambientBacklightPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes ambientBacklightPulse {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+/* Cinema Focus Button Styling */
+.btn-cinema-focus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f1f5f9;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+
+.btn-cinema-focus:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+body.cinema-focus-mode .btn-cinema-focus {
+  background: linear-gradient(135deg, #e50914, #ff334b) !important;
+  color: #ffffff !important;
+  border-color: #ff5569 !important;
+  box-shadow: 0 0 16px rgba(229, 9, 20, 0.6) !important;
+}
+
+/* ==========================================================================
+   HiAnime.com Style Badges & Cards (Eleanor Ravnel Feature)
+   ========================================================================== */
+.anime-corner-badges {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 6;
+  pointer-events: none;
+  flex-wrap: wrap;
+}
+
+.anime-badge-sub {
+  background: #10b981;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+  line-height: 1.1;
+}
+
+.anime-badge-dub {
+  background: #f59e0b;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+  line-height: 1.1;
+}
+
+.anime-badge-ep {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f8fafc;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+  line-height: 1.1;
+}
+
+.btn-prev-ep-player,
+.btn-next-ep-player {
+  font-size: 0.78rem !important;
+  padding: 0.35rem 0.7rem !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+}
+
+.btn-prev-ep-player:hover,
+.btn-next-ep-player:hover {
+  background: rgba(229, 9, 20, 0.2) !important;
+  border-color: rgba(229, 9, 20, 0.6) !important;
+}
+
+
 
 
 
