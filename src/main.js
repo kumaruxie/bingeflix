@@ -2679,14 +2679,40 @@ function setupAudioLanguageSelector(details, isTv) {
   }
 
   function handleLangSwitch(langKey, label) {
+    state.activeAudioLang = langKey;
     const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+
+    if (isAnime) {
+      if (langKey === 'en' || langKey === 'ja') {
+        // AutoEmbed and AXON feature the dedicated Anime Dub/Sub engine
+        if (state.activeSourceType !== 'axon') {
+          state.activeSourceType = 'autoembed';
+        }
+      } else if (langKey === 'hi') {
+        // Hindi dubbed anime streams from multi-audio server (VidSrc PM)
+        state.activeSourceType = 'vidsrc';
+      }
+    } else {
+      if (langKey === 'hi') {
+        // Hollywood / International Hindi dubbed streams from VidSrc PM
+        state.activeSourceType = 'vidsrc';
+      } else if (langKey === 'en') {
+        state.activeSourceType = 'vidlink';
+      }
+    }
+
+    const serverSelect = document.getElementById('player-server-select');
+    if (serverSelect && serverSelect.value !== state.activeSourceType) {
+      serverSelect.value = state.activeSourceType;
+    }
+
     // Reload player iframe with newly selected audio track & dub parameter
     mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1, playSec);
-    showToast(`🎧 Audio changed to ${label} - Stream Reloaded`);
+    showToast(`🎧 Audio set to ${label} - Stream Reloaded`);
   }
 
   if (isAnime) {
-    // 🍥 ANIME: English Dub (Primary) + Japanese Sub + Hindi Dub + Multi-Audio
+    // 🍥 ANIME: English Dub (Primary) + Japanese Sub + Hindi Dub (No Multi-Audio)
     const enPill = createPill('🇺🇸 English Dub', 'en', () => {
       handleLangSwitch('en', '🇺🇸 English Dub');
     });
@@ -2701,11 +2727,6 @@ function setupAudioLanguageSelector(details, isTv) {
       handleLangSwitch('hi', '🇮🇳 Hindi Dub');
     });
     container.appendChild(hiPill);
-
-    const multiPill = createPill('🌐 Multi-Audio HD', 'multi', () => {
-      handleLangSwitch('multi', '🌐 Multi-Audio');
-    });
-    container.appendChild(multiPill);
 
   } else if (isIndianMovie) {
     // 🇮🇳 INDIAN CINEMA: Hindi Original Audio + English Sub/Dub + Regional Original
@@ -2860,21 +2881,14 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
   const streamEpisode = parseInt(episode, 10) || 1;
 
   const lang = state.activeAudioLang || 'en';
-  let axonQuery = '';
-  if (lang === 'en') {
-    axonQuery = isAnime ? '?dub=1&audio=en' : '?audio=en';
-  } else if (lang === 'hi') {
-    axonQuery = '?audio=hi';
-  } else if (lang === 'ja') {
-    axonQuery = '?sub=1&audio=ja';
-  } else if (lang === 'es') {
-    axonQuery = '?audio=es';
-  }
+  const subOrDub = lang === 'en' ? 'dub' : 'sub';
 
   // Real content stream URL - guaranteed zero sample video fallback
-  const streamUrl = isTv
-    ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/${axonQuery}`
-    : `https://player.autoembed.co/embed/movie/${item.id}/${axonQuery}`;
+  const streamUrl = isAnime
+    ? `https://player.autoembed.co/embed/anime/${item.id}/${streamEpisode}/${subOrDub}`
+    : (isTv
+      ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/`
+      : `https://player.autoembed.co/embed/movie/${item.id}/`);
 
   return {
     url: streamUrl,
@@ -3011,24 +3025,23 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   } else if (type === 'autoembed') {
     // ---------------------------------------------------------------
-    // 🍥 Server: AutoEmbed (Sub/Dub HD & RabbitStream)
+    // 🍥 Server: AutoEmbed (Sub/Dub HD & Dedicated Anime Player)
     // ---------------------------------------------------------------
     const sNum = isAnime ? 1 : 2;
-    badgeLabel = `🍥 Server ${sNum} (AutoEmbed Sub/Dub) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Sub/Dub HD'}${langTag}`;
-    const autoEmbedSeason = isAnime ? 1 : playSeason;
-    let autoEmbedQuery = '';
-    if (lang === 'en') {
-      autoEmbedQuery = isAnime ? '?dub=1&audio=en' : '?audio=en';
-    } else if (lang === 'hi') {
-      autoEmbedQuery = '?audio=hi';
-    } else if (lang === 'ja') {
-      autoEmbedQuery = '?sub=1&audio=ja';
-    } else if (lang === 'es') {
-      autoEmbedQuery = '?audio=es';
+    const subOrDub = lang === 'en' ? 'dub' : 'sub';
+    badgeLabel = `🍥 Server ${sNum} (AutoEmbed ${lang === 'en' ? 'English Dub' : 'Japanese Sub'}) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD'}${langTag}`;
+
+    if (isAnime) {
+      streamUrl = `https://player.autoembed.co/embed/anime/${item.id}/${playEpisode}/${subOrDub}`;
+    } else {
+      let autoEmbedQuery = '';
+      if (lang === 'hi') autoEmbedQuery = '?audio=hi';
+      else if (lang === 'en') autoEmbedQuery = '?audio=en';
+      else if (lang === 'es') autoEmbedQuery = '?audio=es';
+      streamUrl = isTv
+        ? `https://player.autoembed.co/embed/tv/${item.id}/${playSeason}-${playEpisode}/${autoEmbedQuery}`
+        : `https://player.autoembed.co/embed/movie/${item.id}/${autoEmbedQuery}`;
     }
-    streamUrl = isTv
-      ? `https://player.autoembed.co/embed/tv/${item.id}/${autoEmbedSeason}-${playEpisode}/${autoEmbedQuery}`
-      : `https://player.autoembed.co/embed/movie/${item.id}/${autoEmbedQuery}`;
 
   } else if (type === 'vidsrc') {
     // ---------------------------------------------------------------

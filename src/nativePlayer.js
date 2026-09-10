@@ -54,14 +54,13 @@ export function initNativePlayer(container, streamConfig = {}) {
   if (!activeUrl && tmdbId) {
     const sNum = isAnime ? 1 : (parseInt(season, 10) || 1);
     const epNum = parseInt(episode, 10) || 1;
-    let queryParam = '';
-    if (audioLang === 'en') queryParam = isAnime ? '?dub=1&audio=en' : '?audio=en';
-    else if (audioLang === 'hi') queryParam = '?audio=hi';
-    else if (audioLang === 'ja') queryParam = '?sub=1&audio=ja';
+    const subOrDub = audioLang === 'en' ? 'dub' : 'sub';
 
-    activeUrl = isTv
-      ? `https://player.autoembed.co/embed/tv/${tmdbId}/${sNum}-${epNum}/${queryParam}`
-      : `https://player.autoembed.co/embed/movie/${tmdbId}/${queryParam}`;
+    activeUrl = isAnime
+      ? `https://player.autoembed.co/embed/anime/${tmdbId}/${epNum}/${subOrDub}`
+      : (isTv
+        ? `https://player.autoembed.co/embed/tv/${tmdbId}/${sNum}-${epNum}/`
+        : `https://player.autoembed.co/embed/movie/${tmdbId}/`);
   }
 
   const langBadgeText = audioLang === 'en'
@@ -70,7 +69,7 @@ export function initNativePlayer(container, streamConfig = {}) {
       ? '🇮🇳 HINDI DUB • 0 ADS'
       : audioLang === 'ja'
         ? '🇯🇵 JAPANESE SUB • 0 ADS'
-        : '🌐 MULTI-AUDIO • 0 ADS';
+        : '🎬 ORIGINAL AUDIO • 0 ADS';
 
   mount.innerHTML = `
     <div id="axon-custom-player" class="axon-player-root" style="position: absolute; inset: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; user-select: none;">
