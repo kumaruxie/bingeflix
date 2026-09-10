@@ -2177,14 +2177,20 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Jap/Eng Sound)</option>
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="trailer">🎞️ Server 4: Official HD Trailer</option>
+        <option value="2embed">📺 Server 4: 2Embed (Direct Stream)</option>
+        <option value="vidsrc_cc">🌐 Server 5: VidSrc v2 (Cloud Fast)</option>
+        <option value="vidsrc_xyz">☁️ Server 6: VidSrc XYZ (Global Mirror)</option>
+        <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
     } else {
       serverSelect.innerHTML = `
         <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Direct Sound)</option>
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="trailer">🎞️ Server 4: Official HD Trailer</option>
+        <option value="2embed">📺 Server 4: 2Embed (Direct Stream)</option>
+        <option value="vidsrc_cc">🌐 Server 5: VidSrc v2 (Cloud Fast)</option>
+        <option value="vidsrc_xyz">☁️ Server 6: VidSrc XYZ (Global Mirror)</option>
+        <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
     }
     serverSelect.value = state.activeSourceType;
@@ -2195,6 +2201,23 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       mountVideoPlayer(details, chosen, state.currentSeason || 1, state.currentEpisode || 1, playSec);
       const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : chosen;
       showToast(`Connected to ${label}`);
+    };
+  }
+
+  // 1-Click "🔄 Switch Server" Button
+  const nextServerBtn = document.getElementById('btn-next-server');
+  if (nextServerBtn) {
+    nextServerBtn.onclick = () => {
+      const serverOrder = ['vidlink', 'vidsrc', 'autoembed', '2embed', 'vidsrc_cc', 'vidsrc_xyz'];
+      const currentIndex = serverOrder.indexOf(state.activeSourceType);
+      const nextIndex = (currentIndex + 1) % serverOrder.length;
+      const nextServer = serverOrder[nextIndex];
+      state.activeSourceType = nextServer;
+      if (serverSelect) serverSelect.value = nextServer;
+      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+      mountVideoPlayer(details, nextServer, state.currentSeason || 1, state.currentEpisode || 1, playSec);
+      const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : nextServer;
+      showToast(`Switched to ${label}`);
     };
   }
 
@@ -2552,11 +2575,38 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
       ? `https://player.autoembed.co/embed/tv/${item.id}/${season}-${episode}/`
       : `https://player.autoembed.co/embed/movie/${item.id}/`;
 
+  } else if (type === '2embed') {
+    // ---------------------------------------------------------------
+    // 📺 Server 4: 2Embed (Direct Stream & Fast Archive)
+    // ---------------------------------------------------------------
+    badgeLabel = `📺 Server 4 (2Embed) • ${isTv ? `S${season} : E${episode}` : 'Direct HD'}`;
+    streamUrl = isTv
+      ? `https://www.2embed.cc/embedtv/${item.id}&s=${season}&e=${episode}`
+      : `https://www.2embed.cc/embed/${item.id}`;
+
+  } else if (type === 'vidsrc_cc') {
+    // ---------------------------------------------------------------
+    // 🌐 Server 5: VidSrc v2 Cloud (Fast CDN)
+    // ---------------------------------------------------------------
+    badgeLabel = `🌐 Server 5 (VidSrc v2) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K'}`;
+    streamUrl = isTv
+      ? `https://vidsrc.cc/v2/embed/tv/${item.id}/${season}/${episode}`
+      : `https://vidsrc.cc/v2/embed/movie/${item.id}`;
+
+  } else if (type === 'vidsrc_xyz') {
+    // ---------------------------------------------------------------
+    // ☁️ Server 6: VidSrc XYZ (Global Mirror)
+    // ---------------------------------------------------------------
+    badgeLabel = `☁️ Server 6 (VidSrc XYZ) • ${isTv ? `S${season} : E${episode}` : 'Global Mirror'}`;
+    streamUrl = isTv
+      ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=${season}&episode=${episode}`
+      : `https://vidsrc.xyz/embed/movie?tmdb=${item.id}`;
+
   } else if (type === 'trailer') {
     // ---------------------------------------------------------------
     // 🎞️ Official HD Trailer
     // ---------------------------------------------------------------
-    badgeLabel = '🎞️ Server 4: Official HD Trailer';
+    badgeLabel = '🎞️ Server 7: Official HD Trailer';
     const videos = item.videos ? item.videos.results : [];
     const trailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
     if (trailer && trailer.key) {
@@ -2615,14 +2665,14 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
         allowfullscreen="true" 
         webkitallowfullscreen="true" 
         mozallowfullscreen="true" 
-        referrerpolicy="origin">
+        referrerpolicy="no-referrer">
       </iframe>
     `;
   } else {
     cinemaScreen.innerHTML = `
       <div style="text-align: center; color: var(--text-secondary); padding: 3rem;">
         <h3>Stream is loading...</h3>
-        <p style="margin-top: 0.5rem;">Select Server 1, Server 2, or Server 3 from the dropdown above to stream.</p>
+        <p style="margin-top: 0.5rem;">Select a streaming server from the dropdown above.</p>
       </div>
     `;
   }
