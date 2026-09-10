@@ -6194,55 +6194,6 @@ body.cinema-focus-mode .btn-cinema-focus {
   border-color: rgba(229, 9, 20, 0.6) !important;
 }
 
-.player-server-helper {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 1rem;
-  background: rgba(14, 18, 27, 0.85);
-  backdrop-filter: blur(10px);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  margin-top: 0.6rem;
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-}
-
-.player-server-helper strong {
-  color: #38bdf8;
-  font-weight: 600;
-}
-
-@media (max-width: 768px) {
-  .player-server-helper {
-    font-size: 0.75rem;
-    padding: 0.5rem 0.75rem;
-  }
-}
-
-.btn-mega-aggregator {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(168, 85, 247, 0.22)) !important;
-  border: 1px solid rgba(56, 189, 248, 0.45) !important;
-  color: #38bdf8 !important;
-  font-weight: 700 !important;
-  font-size: 0.76rem !important;
-  padding: 0.35rem 0.75rem !important;
-  border-radius: 6px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.35rem !important;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
-}
-
-.btn-mega-aggregator:hover {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.35), rgba(168, 85, 247, 0.35)) !important;
-  border-color: #38bdf8 !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.45) !important;
-  transform: translateY(-1px);
-}
 
 
 
