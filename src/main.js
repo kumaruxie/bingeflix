@@ -1405,7 +1405,16 @@ const COMMON_SEARCH_TYPOS = {
   'animal': 'Animal',
   'sholay': 'Sholay',
   'dangal': 'Dangal',
-  '3 idiots': '3 Idiots'
+  '3 idiots': '3 Idiots',
+
+  // Krishnavataram / Indian Mythological Variations
+  'krishnavtaram': 'Krishnavataram',
+  'krishnavatar': 'Krishnavataram',
+  'krishnaavatar': 'Krishnavataram',
+  'krishna avataram': 'Krishnavataram',
+  'sri krishnavtaram': 'Sri Krishnavataram',
+  'paramavatar': 'Paramavatar Shri Krishna',
+  'paramavtar': 'Paramavatar Shri Krishna'
 };
 
 function resolveSearchQuery(rawQuery) {
@@ -1435,10 +1444,174 @@ function resolveSearchQuery(rawQuery) {
   return { query: cleaned, corrected: false, original: rawQuery };
 }
 
+// ==========================================================================
+// IMDb Search Converter & Series Episode Arranger
+// Converts phonetic queries / typos into official IMDb titles and arranges them
+// ==========================================================================
+async function searchIMDbConverter(rawQuery) {
+  const clean = rawQuery.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if (!clean || clean.length < 2) return [];
+
+  try {
+    const prefix = clean[0];
+    const url = `https://v3.sg.media-imdb.com/suggestion/${prefix}/${encodeURIComponent(clean)}.json`;
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data || !Array.isArray(data.d)) return [];
+
+    const titleItems = data.d.filter(item => item && item.id && item.id.startsWith('tt'));
+    if (titleItems.length === 0) return [];
+
+    // Convert top IMDb items into rich TMDB / catalog records
+    const convertedPromises = titleItems.slice(0, 6).map(async (item) => {
+      const imdbId = item.id;
+      const isTv = item.qid === 'tvSeries' || item.q === 'TV series' || item.q === 'tv series';
+      const poster = item.i ? item.i.imageUrl : null;
+      const year = item.y ? String(item.y) : '';
+
+      // 1. Try finding TMDB record by IMDb ID
+      try {
+        const findData = await fetchTMDB(`/find/${imdbId}`, { external_source: 'imdb_id' });
+        if (findData) {
+          const mRes = (findData.movie_results || []).map(m => ({ ...m, isTv: false, imdb_id: imdbId }));
+          const tRes = (findData.tv_results || []).map(t => ({ ...t, isTv: true, imdb_id: imdbId }));
+          if (mRes.length > 0 || tRes.length > 0) {
+            return [...mRes, ...tRes];
+          }
+        }
+      } catch (e) {}
+
+      // 2. Fallback: Search TMDB by IMDb Title
+      try {
+        const titleClean = (item.l || '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+        const searchEndpoint = isTv ? '/search/tv' : '/search/movie';
+        const sData = await fetchTMDB(searchEndpoint, { query: titleClean });
+        if (sData && sData.results && sData.results.length > 0) {
+          const match = sData.results[0];
+          return [{
+            ...match,
+            isTv,
+            imdb_id: imdbId,
+            poster_path: match.poster_path || poster
+          }];
+        }
+      } catch (e) {}
+
+      // 3. Guaranteed rich fallback with IMDb metadata
+      return [{
+        id: imdbId,
+        imdb_id: imdbId,
+        title: item.l,
+        name: item.l,
+        poster_path: poster,
+        release_date: year,
+        first_air_date: year,
+        isTv,
+        vote_average: 8.0,
+        overview: item.s ? `Starring: ${item.s}` : 'Streaming in full HD with multi-audio.'
+      }];
+    });
+
+    const nested = await Promise.all(convertedPromises);
+    return nested.flat().filter(Boolean);
+  } catch (err) {
+    console.warn('IMDb suggestions converter error:', err);
+    return [];
+  }
+}
+
+async function resolveShowImdbId(title) {
+  if (!title) return null;
+  try {
+    const formatted = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if (!formatted) return null;
+    const url = `https://v3.sg.media-imdb.com/suggestion/${formatted[0]}/${encodeURIComponent(formatted)}.json`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !Array.isArray(data.d)) return null;
+
+    const tvMatch = data.d.find(i => i && i.id && i.id.startsWith('tt') && (i.qid === 'tvSeries' || i.q === 'TV series' || i.q === 'tv series'));
+    if (tvMatch) return tvMatch.id;
+    const anyTitle = data.d.find(i => i && i.id && i.id.startsWith('tt'));
+    return anyTitle ? anyTitle.id : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchIMDbSeriesEpisodes(imdbId) {
+  if (!imdbId || !String(imdbId).startsWith('tt')) return null;
+  try {
+    const res = await fetch(`https://v3-cinemeta.strem.io/meta/series/${imdbId}.json`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.meta || !Array.isArray(data.meta.videos) || data.meta.videos.length === 0) {
+      return null;
+    }
+    return data.meta.videos;
+  } catch (err) {
+    console.warn('Cinemeta IMDb episodes fetch error:', err);
+    return null;
+  }
+}
+
+function arrangeImdbEpisodes(rawVideos) {
+  if (!Array.isArray(rawVideos) || rawVideos.length === 0) return null;
+  const seasonsMap = {};
+
+  const s1Videos = rawVideos.filter(v => (v.season === 1 || !v.season));
+  const startsWithZero = s1Videos.length > 0 && s1Videos[0].number === 0;
+
+  rawVideos.forEach((v) => {
+    const sNum = (typeof v.season === 'number' && v.season > 0) ? v.season : 1;
+    if (!seasonsMap[sNum]) seasonsMap[sNum] = [];
+
+    const countInSeason = seasonsMap[sNum].length;
+    let epNum;
+    if (startsWithZero && sNum === 1) {
+      epNum = (typeof v.number === 'number') ? (v.number + 1) : (countInSeason + 1);
+    } else if (typeof v.number === 'number' && v.number > 0) {
+      epNum = v.number;
+    } else {
+      epNum = countInSeason + 1;
+    }
+
+    const isGeneric = !v.name || /^Episode #\d+\.\d+$/i.test(v.name);
+    const epTitle = isGeneric ? `Episode ${epNum}` : v.name;
+
+    seasonsMap[sNum].push({
+      id: v.id || `imdb_${sNum}_${epNum}`,
+      episode_number: epNum,
+      relative_number: epNum,
+      season_number: sNum,
+      name: epTitle,
+      air_date: v.firstAired ? v.firstAired.split('T')[0] : '',
+      overview: v.overview || '',
+      vote_average: parseFloat(v.rating) || 8.0,
+      still_path: v.thumbnail || null,
+      imdb_id: v.imdb_id || v.id
+    });
+  });
+
+  return seasonsMap;
+}
+
 const searchInput = document.getElementById('search-input');
 const searchDropdown = document.getElementById('search-dropdown');
 const searchClear = document.getElementById('search-clear');
 let searchDebounceTimer;
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const firstResult = searchDropdown.querySelector('.search-result-item');
+    if (firstResult) {
+      firstResult.click();
+    }
+  }
+});
 
 searchInput.addEventListener('input', (e) => {
   const query = e.target.value.trim();
@@ -1462,7 +1635,7 @@ searchInput.addEventListener('input', (e) => {
       try {
         const findData = await fetchTMDB(`/find/${trimmedQuery}`, { external_source: 'imdb_id' });
         if (findData) {
-          const foundMovies = (findData.movie_results || []).map(m => ({ ...m, imdb_id: trimmedQuery }));
+          const foundMovies = (findData.movie_results || []).map(m => ({ ...m, isTv: false, imdb_id: trimmedQuery }));
           const foundTv = (findData.tv_results || []).map(t => ({ ...t, isTv: true, imdb_id: trimmedQuery }));
           combined = [...foundMovies, ...foundTv];
         }
@@ -1472,15 +1645,20 @@ searchInput.addEventListener('input', (e) => {
     }
 
     if (combined.length === 0) {
-      const [movieData, tvData] = await Promise.all([
+      // Parallel fetch: TMDB direct search + IMDb suggestions converter
+      const [movieData, tvData, imdbConverted] = await Promise.all([
         fetchTMDB('/search/movie', { query: searchQuery }),
-        fetchTMDB('/search/tv', { query: searchQuery })
+        fetchTMDB('/search/tv', { query: searchQuery }),
+        searchIMDbConverter(trimmedQuery)
       ]);
 
-      combined = [
+      const tmdbResults = [
         ...((movieData && movieData.results) || []),
         ...((tvData && tvData.results) || []).map(t => ({ ...t, isTv: true }))
       ];
+
+      // Merge IMDb converted items first (has high phonetic accuracy) + TMDB results
+      combined = [...(imdbConverted || []), ...tmdbResults];
     }
 
     // Also scan local catalog tracks for instant rich local hits
@@ -1504,12 +1682,35 @@ searchInput.addEventListener('input', (e) => {
       }
     }
 
-    combined = [...localMatches, ...combined]
-      .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
-      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    // Deduplicate and arrange
+    const seen = new Set();
+    const arrangedResults = [];
+    const allCandidates = [...localMatches, ...combined];
 
-    if (combined.length > 0) {
-      renderSearchDropdown(combined.slice(0, 8), resolved.corrected ? resolved.query : null);
+    for (const item of allCandidates) {
+      if (!item) continue;
+      const idKey = item.imdb_id ? `imdb_${item.imdb_id}` : `tmdb_${item.id}`;
+      const titleKey = ((item.title || item.name || '').toLowerCase() + '_' + (item.isTv ? 'tv' : 'mov')).replace(/[^a-z0-9]/g, '');
+      if (!seen.has(idKey) && !seen.has(titleKey)) {
+        seen.add(idKey);
+        seen.add(titleKey);
+        arrangedResults.push(item);
+      }
+    }
+
+    // Prioritize results closely matching the user query
+    arrangedResults.sort((a, b) => {
+      const aTitle = (a.title || a.name || '').toLowerCase();
+      const bTitle = (b.title || b.name || '').toLowerCase();
+      const aExact = aTitle.includes(qLower);
+      const bExact = bTitle.includes(qLower);
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+      return (b.popularity || 0) - (a.popularity || 0);
+    });
+
+    if (arrangedResults.length > 0) {
+      renderSearchDropdown(arrangedResults.slice(0, 8), resolved.corrected ? resolved.query : null);
     } else {
       searchDropdown.innerHTML = '<div style="padding: 1.2rem; text-align: center; color: var(--text-muted);">No movies or series found</div>';
       searchDropdown.style.display = 'block';
@@ -1538,7 +1739,7 @@ function renderSearchDropdown(results, typoCorrection = null) {
     div.className = 'search-result-item';
 
     const posterSrc = item.poster_path
-      ? `${IMG_BASE_URL}/w200${item.poster_path}`
+      ? (item.poster_path.startsWith('http') ? item.poster_path : `${IMG_BASE_URL}/w200${item.poster_path}`)
       : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=100&q=80';
     const year = (item.release_date || item.first_air_date || '').split('-')[0] || '';
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'NR';
@@ -1564,7 +1765,7 @@ function renderSearchDropdown(results, typoCorrection = null) {
       searchDropdown.style.display = 'none';
       searchInput.value = '';
       searchClear.style.display = 'none';
-      openPlayerView(item.id, item.isTv);
+      openPlayerView(item.id, item.isTv, 1, 1, true, 0, item);
     });
 
     searchDropdown.appendChild(div);
@@ -1581,21 +1782,85 @@ document.addEventListener('click', (e) => {
 // ==========================================================================
 // Dedicated Player & Watch View
 // ==========================================================================
-async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode = 1, updateHash = true, resumeSeconds = 0) {
-  const endpoint = isTv ? `/tv/${id}` : `/movie/${id}`;
-  let details = await fetchTMDB(endpoint, {
-    append_to_response: 'videos,credits,similar,external_ids,translations',
-  });
+async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode = 1, updateHash = true, resumeSeconds = 0, initialItem = null) {
+  let details = null;
+  let resolvedId = id;
+  const isImdbId = typeof id === 'string' && id.startsWith('tt');
 
-  if (!details && !isTv) {
-    // Fallback try tv
-    details = await fetchTMDB(`/tv/${id}`, {
-      append_to_response: 'videos,credits,similar,external_ids,translations',
-    });
-    if (details) details.isTv = true;
+  if (isImdbId) {
+    try {
+      const findData = await fetchTMDB(`/find/${id}`, { external_source: 'imdb_id' });
+      if (findData) {
+        const found = isTv
+          ? (findData.tv_results && findData.tv_results[0])
+          : (findData.movie_results && findData.movie_results[0]);
+        if (found) {
+          resolvedId = found.id;
+          isTv = Boolean(isTv || (findData.tv_results && findData.tv_results.length > 0));
+        }
+      }
+    } catch (e) {
+      console.warn('TMDB find by IMDb ID error:', e);
+    }
   }
 
-  // Ensure IMDb ID is resolved for cross-server mirror indexing
+  const endpoint = isTv ? `/tv/${resolvedId}` : `/movie/${resolvedId}`;
+  if (!String(resolvedId).startsWith('tt')) {
+    details = await fetchTMDB(endpoint, {
+      append_to_response: 'videos,credits,similar,external_ids,translations',
+    });
+
+    if (!details && !isTv) {
+      details = await fetchTMDB(`/tv/${resolvedId}`, {
+        append_to_response: 'videos,credits,similar,external_ids,translations',
+      });
+      if (details) details.isTv = true;
+    }
+  }
+
+  // Fallback for titles found exclusively via IMDb / Cinemeta
+  if (!details && isImdbId) {
+    try {
+      const cineRes = await fetch(`https://v3-cinemeta.strem.io/meta/${isTv ? 'series' : 'movie'}/${id}.json`);
+      if (cineRes.ok) {
+        const cineData = await cineRes.json();
+        if (cineData && cineData.meta) {
+          const m = cineData.meta;
+          details = {
+            id: id,
+            imdb_id: id,
+            title: m.name,
+            name: m.name,
+            tagline: '',
+            overview: m.description || '',
+            poster_path: m.poster || null,
+            backdrop_path: m.background || null,
+            release_date: m.year || '',
+            first_air_date: m.year || '',
+            vote_average: parseFloat(m.imdbRating) || 8.0,
+            vote_count: 500,
+            runtime: parseInt(m.runtime, 10) || 120,
+            genres: (m.genres || []).map(g => ({ name: g })),
+            status: isTv ? 'TV Series' : 'Released',
+            isTv: isTv,
+            seasons: m.videos ? [{ season_number: 1, name: 'Season 1', episode_count: m.videos.length }] : []
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Cinemeta fallback error:', e);
+    }
+  }
+
+  if (!details && initialItem) {
+    details = { ...initialItem };
+  }
+
+  if (details && initialItem && initialItem.imdb_id && !details.imdb_id) {
+    details.imdb_id = initialItem.imdb_id;
+  }
+
+  // Ensure IMDb ID is resolved for cross-server mirror indexing & episode fetching
   if (details && !details.imdb_id && (!details.external_ids || !details.external_ids.imdb_id)) {
     try {
       const ext = await fetchTMDB(`/${isTv ? 'tv' : 'movie'}/${details.id}/external_ids`);
@@ -1606,6 +1871,16 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       }
     } catch (e) {
       console.warn('External IDs fallback fetch:', e);
+    }
+  }
+
+  // If still missing IMDb ID for TV show, resolve via IMDb suggestions converter
+  if (details && isTv && !details.imdb_id && (!details.external_ids || !details.external_ids.imdb_id)) {
+    const resolvedImdb = await resolveShowImdbId(details.name || details.title);
+    if (resolvedImdb) {
+      details.imdb_id = resolvedImdb;
+      if (!details.external_ids) details.external_ids = {};
+      details.external_ids.imdb_id = resolvedImdb;
     }
   }
 
@@ -1675,7 +1950,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   };
 
   // Fetch Real IMDb Rating from OMDB (using IMDb ID or title+year fallback)
-  const imdbId = (details.external_ids && details.external_ids.imdb_id) || details.imdb_id;
+  const imdbId = (details.external_ids && details.external_ids.imdb_id) || details.imdb_id || (initialItem && initialItem.imdb_id);
   const tmdbScore = details.vote_average ? details.vote_average.toFixed(1) : 'NR';
   const tmdbVoteCount = details.vote_count ? details.vote_count.toLocaleString() : '0';
   const ratingEl = document.getElementById('player-rating');
@@ -1691,6 +1966,15 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       }
     }
   });
+
+  // Fetch and arrange IMDb series episodes if available
+  let imdbEpisodesMap = null;
+  if (isTv && imdbId) {
+    const rawImdbVideos = await fetchIMDbSeriesEpisodes(imdbId);
+    if (rawImdbVideos && rawImdbVideos.length > 0) {
+      imdbEpisodesMap = arrangeImdbEpisodes(rawImdbVideos);
+    }
+  }
 
   // Web Series & Anime Season Breakdown & Episode Controls
   const seriesControls = document.getElementById('player-series-controls');
@@ -1755,6 +2039,21 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     }
   }
 
+  function syncBatchTabForCurrentEpisode() {
+    if (currentSeasonEpisodes.length > 20 && rangeTabsContainer) {
+      const batchSize = 25;
+      const curIdx = currentSeasonEpisodes.findIndex(e => e.episode_number === state.currentEpisode || e.relative_number === state.currentEpisode);
+      const epNum = curIdx !== -1 ? (curIdx + 1) : state.currentEpisode;
+      const totalBatches = Math.ceil(currentSeasonEpisodes.length / batchSize);
+      const batchIdx = Math.min(Math.floor((epNum - 1) / batchSize), totalBatches - 1);
+      activeRangeIndex = batchIdx + 1;
+      const tabs = rangeTabsContainer.querySelectorAll('.range-tab-btn');
+      tabs.forEach((tab, i) => {
+        tab.classList.toggle('active', i === batchIdx);
+      });
+    }
+  }
+
   function advanceToNextEpisode() {
     if (!isTv) return;
     const currentIdx = currentSeasonEpisodes.findIndex(e => e.episode_number === state.currentEpisode || e.relative_number === state.currentEpisode);
@@ -1766,6 +2065,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
       const playSeason = nextEpObj.season_number || state.currentSeason;
       mountVideoPlayer(details, state.activeSourceType, playSeason, nextEpObj.episode_number);
+      syncBatchTabForCurrentEpisode();
       renderCurrentEpisodesOrientation();
       updateNextEpButtonState();
       showToast(`Playing Next: S${state.currentSeason} : E${state.currentEpisode} - ${nextEpObj.name}`);
@@ -1791,6 +2091,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
       const playSeason = prevEpObj.season_number || state.currentSeason;
       mountVideoPlayer(details, state.activeSourceType, playSeason, prevEpObj.episode_number);
+      syncBatchTabForCurrentEpisode();
       renderCurrentEpisodesOrientation();
       updateNextEpButtonState();
       showToast(`Playing Previous: S${state.currentSeason} : E${state.currentEpisode} - ${prevEpObj.name}`);
@@ -1805,7 +2106,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   if (playerPrevEpBtn) playerPrevEpBtn.onclick = advanceToPrevEpisode;
   if (quickNextEpBtn) quickNextEpBtn.onclick = advanceToNextEpisode;
 
-  // Cinema Focus Mode (Background Blur) Toggle (Mukesh 444 Feature)
+  // Cinema Focus Mode (Background Blur) Toggle
   if (playerTheaterBtn) {
     playerTheaterBtn.onclick = () => {
       const isFocused = document.body.classList.toggle('cinema-focus-mode');
@@ -1846,21 +2147,24 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     rangeTabsContainer.innerHTML = '';
     if (episodesList.length > 20) {
       rangeTabsContainer.style.display = 'flex';
-      activeRangeIndex = 1;
 
       const batchSize = 25;
-      const totalBatches = Math.min(Math.ceil(episodesList.length / batchSize), 20);
+      const totalBatches = Math.ceil(episodesList.length / batchSize);
+      const targetBatchIndex = (state.currentEpisode && state.currentEpisode > 1)
+        ? Math.min(Math.floor((state.currentEpisode - 1) / batchSize), totalBatches - 1)
+        : 0;
+      activeRangeIndex = targetBatchIndex + 1;
 
       for (let b = 0; b < totalBatches; b++) {
         const startEp = b * batchSize + 1;
         const endEp = Math.min((b + 1) * batchSize, episodesList.length);
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `range-tab-btn ${b === 0 ? 'active' : ''}`;
+        btn.className = `range-tab-btn ${b === targetBatchIndex ? 'active' : ''}`;
         btn.textContent = `Eps ${startEp} - ${endEp}`;
         btn.onclick = () => {
           activeRangeIndex = b + 1;
-          document.querySelectorAll('.range-tab-btn').forEach(b => b.classList.remove('active'));
+          rangeTabsContainer.querySelectorAll('.range-tab-btn').forEach(tb => tb.classList.remove('active'));
           btn.classList.add('active');
           renderCurrentEpisodesOrientation();
         };
@@ -1892,7 +2196,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       const isCurrent = ep.episode_number === state.currentEpisode || ep.relative_number === state.currentEpisode;
       const epDisplayNum = ep.relative_number || ep.episode_number;
       const thumb = ep.still_path
-        ? `${IMG_BASE_URL}/w300${ep.still_path}`
+        ? (ep.still_path.startsWith('http') ? ep.still_path : `${IMG_BASE_URL}/w300${ep.still_path}`)
         : (details.backdrop_path ? `${IMG_BASE_URL}/w300${details.backdrop_path}` : 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=300&q=80');
 
       if (currentViewMode === 'list') {
@@ -1973,7 +2277,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   }
 
   // ==========================================================================
-  // Universal Show & Episode Breakdown (Accurate TMDB Multi-Season Mapping)
+  // Universal Show & Episode Breakdown (Accurate Multi-Season & IMDb Episode Mapping)
   // Ensures 1:1 compatibility with VidLink, VidSrc, and AutoEmbed servers
   // ==========================================================================
   if (isTv) {
@@ -1981,7 +2285,44 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     seasonSelect.innerHTML = '<option value="">Loading seasons...</option>';
 
     const validSeasons = (details.seasons || []).filter(s => s.season_number > 0);
-    const seasonsList = validSeasons.length > 0 ? validSeasons : (details.seasons || [{ season_number: 1, name: 'Season 1', episode_count: 10 }]);
+    let seasonsList = validSeasons.length > 0 ? [...validSeasons] : [];
+
+    // Integrate IMDb arranged episode counts into season breakdown
+    if (imdbEpisodesMap) {
+      const imdbSeasonKeys = Object.keys(imdbEpisodesMap).map(k => parseInt(k, 10)).sort((a, b) => a - b);
+      if (seasonsList.length === 0) {
+        seasonsList = imdbSeasonKeys.map(sn => ({
+          season_number: sn,
+          name: `Season ${sn}`,
+          episode_count: imdbEpisodesMap[sn].length
+        }));
+      } else {
+        seasonsList = seasonsList.map(s => {
+          const imdbEps = imdbEpisodesMap[s.season_number];
+          if (imdbEps && imdbEps.length > (s.episode_count || 0)) {
+            return {
+              ...s,
+              episode_count: imdbEps.length
+            };
+          }
+          return s;
+        });
+
+        imdbSeasonKeys.forEach(sn => {
+          if (!seasonsList.some(s => s.season_number === sn)) {
+            seasonsList.push({
+              season_number: sn,
+              name: `Season ${sn}`,
+              episode_count: imdbEpisodesMap[sn].length
+            });
+          }
+        });
+      }
+    }
+
+    if (seasonsList.length === 0) {
+      seasonsList = [{ season_number: 1, name: 'Season 1', episode_count: 10 }];
+    }
 
     seasonSelect.innerHTML = '';
     seasonsList.forEach(s => {
@@ -2015,70 +2356,98 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
 
     async function loadRegularSeasonEpisodes(seasonNum) {
-        episodesTrack.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading season episodes...</div>';
-        let sData = await fetchTMDB(`/tv/${id}/season/${seasonNum}`);
+      episodesTrack.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading season episodes...</div>';
+      const showId = details.id || id;
+      let sData = await fetchTMDB(`/tv/${showId}/season/${seasonNum}`);
 
-        if (!sData && details.seasons && details.seasons.length > 0) {
-          for (const s of details.seasons) {
-            if (s.season_number !== seasonNum && s.episode_count > 0) {
-              const altData = await fetchTMDB(`/tv/${id}/season/${s.season_number}`);
-              if (altData && altData.episodes && altData.episodes.length > 0) {
-                sData = altData;
-                state.currentSeason = s.season_number;
-                seasonSelect.value = s.season_number;
-                break;
-              }
+      if (!sData && details.seasons && details.seasons.length > 0) {
+        for (const s of details.seasons) {
+          if (s.season_number !== seasonNum && s.episode_count > 0) {
+            const altData = await fetchTMDB(`/tv/${showId}/season/${s.season_number}`);
+            if (altData && altData.episodes && altData.episodes.length > 0) {
+              sData = altData;
+              state.currentSeason = s.season_number;
+              seasonSelect.value = s.season_number;
+              break;
             }
           }
-        }
-
-        if (sData && sData.episodes && sData.episodes.length > 0) {
-          currentSeasonEpisodes = sData.episodes.length > 200 ? sData.episodes.slice(0, 200) : sData.episodes;
-
-          if (seasonMetaBadge) {
-            const yearStr = sData.air_date ? sData.air_date.split('-')[0] : '';
-            seasonMetaBadge.textContent = `Season ${state.currentSeason} • ${currentSeasonEpisodes.length} Episodes ${yearStr ? `• ${yearStr}` : ''}`;
-          }
-
-          if (seasonDesc) {
-            if (sData.overview) {
-              seasonDesc.innerHTML = `<strong>Season ${state.currentSeason} Storyline:</strong> ${sData.overview}`;
-              seasonDesc.style.display = 'block';
-            } else {
-              seasonDesc.style.display = 'none';
-            }
-          }
-
-          setupEpisodeBatchTabs(currentSeasonEpisodes);
-          renderCurrentEpisodesOrientation();
-          updateNextEpButtonState();
-        } else {
-          episodesTrack.innerHTML = `
-            <div style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
-              <p style="margin-bottom: 0.8rem; font-size: 0.95rem;">Stream episodes directly on Server 1 or 2:</p>
-              <button type="button" class="btn-cta btn-play" id="btn-stream-direct-ep">
-                ▶ Stream Episode ${state.currentEpisode || 1}
-              </button>
-            </div>
-          `;
-          const dirBtn = document.getElementById('btn-stream-direct-ep');
-          if (dirBtn) {
-            dirBtn.onclick = () => mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
-          }
-          updateNextEpButtonState();
         }
       }
 
-      seasonSelect.onchange = () => {
-        state.currentSeason = parseInt(seasonSelect.value, 10);
-        state.currentEpisode = 1;
-        episodeBadge.textContent = `S${state.currentSeason} : E1`;
-        window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=1`;
-        loadRegularSeasonEpisodes(state.currentSeason);
-        mountVideoPlayer(details, state.activeSourceType, state.currentSeason, 1);
-      };
+      const tmdbEps = (sData && sData.episodes) || [];
+      const imdbSeasonEps = imdbEpisodesMap && imdbEpisodesMap[seasonNum];
+      let finalEpisodes = [];
 
+      // Use IMDb arranged episodes if IMDb has more comprehensive episode data (e.g. 500 vs 10)
+      if (imdbSeasonEps && imdbSeasonEps.length > tmdbEps.length) {
+        finalEpisodes = imdbSeasonEps.map(imdbEp => {
+          const tmdbMatch = tmdbEps.find(te => te.episode_number === imdbEp.episode_number);
+          if (tmdbMatch) {
+            return {
+              ...imdbEp,
+              name: tmdbMatch.name && !/^Episode \d+$/i.test(tmdbMatch.name) ? tmdbMatch.name : imdbEp.name,
+              overview: tmdbMatch.overview || imdbEp.overview,
+              still_path: tmdbMatch.still_path || imdbEp.still_path,
+              air_date: tmdbMatch.air_date || imdbEp.air_date,
+              vote_average: tmdbMatch.vote_average || imdbEp.vote_average
+            };
+          }
+          return imdbEp;
+        });
+      } else if (tmdbEps.length > 0) {
+        finalEpisodes = tmdbEps;
+      } else if (imdbSeasonEps && imdbSeasonEps.length > 0) {
+        finalEpisodes = imdbSeasonEps;
+      }
+
+      if (finalEpisodes.length > 0) {
+        currentSeasonEpisodes = finalEpisodes;
+
+        if (seasonMetaBadge) {
+          const yearStr = (sData && sData.air_date) ? sData.air_date.split('-')[0] : (finalEpisodes[0].air_date ? finalEpisodes[0].air_date.split('-')[0] : '');
+          seasonMetaBadge.textContent = `Season ${state.currentSeason} • ${currentSeasonEpisodes.length} Episodes ${yearStr ? `• ${yearStr}` : ''}`;
+        }
+
+        if (seasonDesc) {
+          const descText = (sData && sData.overview) || details.overview || '';
+          if (descText) {
+            seasonDesc.innerHTML = `<strong>Season ${state.currentSeason} Storyline:</strong> ${descText}`;
+            seasonDesc.style.display = 'block';
+          } else {
+            seasonDesc.style.display = 'none';
+          }
+        }
+
+        setupEpisodeBatchTabs(currentSeasonEpisodes);
+        renderCurrentEpisodesOrientation();
+        updateNextEpButtonState();
+      } else {
+        episodesTrack.innerHTML = `
+          <div style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
+            <p style="margin-bottom: 0.8rem; font-size: 0.95rem;">Stream episodes directly on Server 1 or 2:</p>
+            <button type="button" class="btn-cta btn-play" id="btn-stream-direct-ep">
+              ▶ Stream Episode ${state.currentEpisode || 1}
+            </button>
+          </div>
+        `;
+        const dirBtn = document.getElementById('btn-stream-direct-ep');
+        if (dirBtn) {
+          dirBtn.onclick = () => mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1);
+        }
+        updateNextEpButtonState();
+      }
+    }
+
+    seasonSelect.onchange = () => {
+      state.currentSeason = parseInt(seasonSelect.value, 10);
+      state.currentEpisode = 1;
+      episodeBadge.textContent = `S${state.currentSeason} : E1`;
+      window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=1`;
       loadRegularSeasonEpisodes(state.currentSeason);
+      mountVideoPlayer(details, state.activeSourceType, state.currentSeason, 1);
+    };
+
+    loadRegularSeasonEpisodes(state.currentSeason);
   } else {
     seriesControls.style.display = 'none';
     if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
