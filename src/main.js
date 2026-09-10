@@ -2523,12 +2523,12 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   } else if (type === '2embed') {
     // ---------------------------------------------------------------
-    // 📺 Server 4: VidSrc Buzz (Direct Cloud 4K - Zero Sandbox Block)
+    // 📺 Server 4: Embed.su (Direct Multi-Source 4K - Zero Sandbox Block)
     // ---------------------------------------------------------------
-    badgeLabel = `📺 Server 4 (VidSrc Buzz) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K Mirror'}`;
+    badgeLabel = `📺 Server 4 (Embed.su) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K Mirror'}`;
     streamUrl = isTv
-      ? `https://vidsrc.buzz/embed/tv/${item.id}/${season}/${episode}?autoplay=true`
-      : `https://vidsrc.buzz/embed/movie/${item.id}?autoplay=true`;
+      ? `https://embed.su/embed/tv/${item.id}/${season}/${episode}`
+      : `https://embed.su/embed/movie/${item.id}`;
 
   } else if (type === 'smashy') {
     // ---------------------------------------------------------------
