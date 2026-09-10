@@ -1205,6 +1205,9 @@ body {
 .cinema-screen video,
 .cinema-screen #artplayer-app,
 .cinema-screen .art-video-player {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   border: none;
@@ -6241,13 +6244,26 @@ body.cinema-focus-mode .btn-cinema-focus {
   border-color: rgba(229, 9, 20, 0.6) !important;
 }
 
+@keyframes axon-spin {
+  to { transform: rotate(360deg); }
+}
 
+.axon-player-root:hover #axon-overlay-top,
+.axon-player-root:hover #axon-overlay-bottom {
+  opacity: 1 !important;
+}
 
+#axon-btn-skip-intro:hover {
+  background: #e50914 !important;
+  border-color: #e50914 !important;
+  transform: scale(1.05);
+}
 
-
-
-
-
-
+.axon-audio-option:hover,
+.axon-sub-option:hover,
+.axon-speed-option:hover {
+  background: rgba(229, 9, 20, 0.25) !important;
+  color: #fff !important;
+}
 
 

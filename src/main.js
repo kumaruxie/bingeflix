@@ -61,8 +61,8 @@ import {
 
 const TMDB_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) || 'df1c541385e699bbed7ffd32934162da';
 const TMDB_BASE_URL = 'https://api.tmdb.org/3';
-const TMDB_FALLBACK_URL = 'https://api.themoviedb.org/3';
 const IMG_BASE_URL = 'https://image.tmdb.org/t/p';
+const TMDB_IMG_URL = IMG_BASE_URL;
 
 // Anime Avatars Map (30+ Real Iconic Anime Character Avatars)
 export const ANIME_AVATARS = {
@@ -1973,126 +1973,48 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   }
 
   // ==========================================================================
-  // Universal Show & Episode Groups Logic (Auto-detects Anime, Web Series, etc.)
+  // Universal Show & Episode Breakdown (Accurate TMDB Multi-Season Mapping)
+  // Ensures 1:1 compatibility with VidLink, VidSrc, and AutoEmbed servers
   // ==========================================================================
   if (isTv) {
     seriesControls.style.display = 'block';
     seasonSelect.innerHTML = '<option value="">Loading seasons...</option>';
 
-    // Optimization: check episode_groups if animation (genre 16) OR single long season (> 25 eps)
-    const hasAnimationGenre = details.genres && details.genres.some(g => g.id === 16);
-    const hasLongSingleSeason = (details.number_of_seasons === 1 && (details.number_of_episodes > 25 || !details.number_of_episodes));
-    const shouldCheckGroup = hasAnimationGenre || hasLongSingleSeason;
+    const validSeasons = (details.seasons || []).filter(s => s.season_number > 0);
+    const seasonsList = validSeasons.length > 0 ? validSeasons : (details.seasons || [{ season_number: 1, name: 'Season 1', episode_count: 10 }]);
 
-    let customEpisodeGroups = null;
+    seasonSelect.innerHTML = '';
+    seasonsList.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.season_number;
+      opt.textContent = `${s.name || `Season ${s.season_number}`} (${s.episode_count || '?'} Eps)`;
+      seasonSelect.appendChild(opt);
+    });
 
-    if (shouldCheckGroup) {
-      try {
-        const groupRes = await fetchTMDB(`/tv/${id}/episode_groups`);
-        if (groupRes && groupRes.results && groupRes.results.length > 0) {
-          // Find best season order / custom group (prefer type 6 or custom or name with "season"/"order"/"story")
-          const targetGroup = groupRes.results.find(g => g.type === 6 || (g.name && g.name.toLowerCase().includes('season')))
-            || groupRes.results.find(g => g.type !== 'original' && g.type !== 1)
-            || groupRes.results.find(g => g.name && (g.name.toLowerCase().includes('order') || g.name.toLowerCase().includes('arc')))
-            || groupRes.results[0];
-
-          if (targetGroup) {
-            const groupDetails = await fetchTMDB(`/tv/episode_group/${targetGroup.id}`);
-            const groupsList = groupDetails?.groups || groupDetails?.episode_groups;
-            if (groupsList && groupsList.length > 0) {
-              customEpisodeGroups = groupsList;
-            }
+    // Smart Season Auto-Detection:
+    // If targetEpisode belongs to a later season (e.g. Naruto Shippuden Ep 163 is in Season 8, not Season 1)
+    let resolvedSeason = targetSeason || seasonsList[0].season_number;
+    if (targetEpisode && targetEpisode > 1) {
+      const targetSObj = seasonsList.find(s => s.season_number === targetSeason);
+      if (!targetSObj || (targetSObj.episode_count && targetEpisode > targetSObj.episode_count && targetEpisode > 30)) {
+        let cumulative = 0;
+        for (const s of seasonsList) {
+          const count = s.episode_count || 0;
+          if (targetEpisode <= cumulative + count) {
+            resolvedSeason = s.season_number;
+            break;
           }
+          cumulative += count;
         }
-      } catch (err) {
-        console.warn('Episode group fetch fallback:', err);
       }
     }
 
-    seasonSelect.innerHTML = '';
+    state.currentSeason = resolvedSeason;
+    state.currentEpisode = targetEpisode || 1;
+    seasonSelect.value = state.currentSeason;
+    episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
 
-    if (customEpisodeGroups && customEpisodeGroups.length > 0) {
-      // ✅ Custom Episode Groups (Anime, Firefly, Story Arc splits!)
-      customEpisodeGroups.forEach((grp, idx) => {
-        const opt = document.createElement('option');
-        opt.value = `group_${idx}`;
-        const epCount = grp.episodes ? grp.episodes.length : 0;
-        opt.textContent = `${grp.name || `Season ${idx + 1}`} (${epCount} Eps)`;
-        seasonSelect.appendChild(opt);
-      });
-
-      let activeGroupIndex = 0;
-      if (targetSeason) {
-        const foundIdx = customEpisodeGroups.findIndex(g => g.order === targetSeason || (g.name && g.name.toLowerCase().includes(`season ${targetSeason}`)));
-        if (foundIdx !== -1) activeGroupIndex = foundIdx;
-      }
-      seasonSelect.value = `group_${activeGroupIndex}`;
-
-      function loadGroupEpisodes(grpIdx) {
-        const grp = customEpisodeGroups[grpIdx];
-        if (!grp) return;
-
-        currentSeasonEpisodes = (grp.episodes || []).map((ep, idx) => ({
-          ...ep,
-          relative_number: ep.order !== undefined ? (ep.order + 1) : (idx + 1),
-          display_season: grp.order !== undefined ? grp.order : (grpIdx + 1)
-        }));
-
-        if (seasonMetaBadge) {
-          seasonMetaBadge.textContent = `${grp.name || `Season ${grpIdx + 1}`} • ${currentSeasonEpisodes.length} Episodes`;
-        }
-
-        if (seasonDesc) {
-          if (grp.description) {
-            seasonDesc.innerHTML = `<strong>${grp.name} Storyline:</strong> ${grp.description}`;
-            seasonDesc.style.display = 'block';
-          } else {
-            seasonDesc.style.display = 'none';
-          }
-        }
-
-        setupEpisodeBatchTabs(currentSeasonEpisodes);
-        renderCurrentEpisodesOrientation();
-        updateNextEpButtonState();
-      }
-
-      seasonSelect.onchange = () => {
-        const selectedVal = seasonSelect.value;
-        const grpIdx = parseInt(selectedVal.replace('group_', ''), 10) || 0;
-        state.currentSeason = customEpisodeGroups[grpIdx]?.order || (grpIdx + 1);
-        state.currentEpisode = 1;
-        episodeBadge.textContent = `S${state.currentSeason} : E1`;
-        window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=1`;
-        loadGroupEpisodes(grpIdx);
-        const firstEp = customEpisodeGroups[grpIdx]?.episodes?.[0];
-        const playEp = firstEp?.episode_number || 1;
-        const playSeason = firstEp?.season_number || state.currentSeason;
-        mountVideoPlayer(details, state.activeSourceType, playSeason, playEp);
-      };
-
-      state.currentSeason = customEpisodeGroups[activeGroupIndex]?.order || (activeGroupIndex + 1);
-      state.currentEpisode = targetEpisode || 1;
-      episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
-      loadGroupEpisodes(activeGroupIndex);
-
-    } else {
-      // ✅ Normal Web Series (Regular seasons: Breaking Bad, Stranger Things, Mirzapur, etc.)
-      const validSeasons = (details.seasons || []).filter(s => s.season_number > 0);
-      const seasonsList = validSeasons.length > 0 ? validSeasons : (details.seasons || [{ season_number: 1, name: 'Season 1', episode_count: 10 }]);
-
-      seasonsList.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s.season_number;
-        opt.textContent = `${s.name || `Season ${s.season_number}`} (${s.episode_count || '?'} Eps)`;
-        seasonSelect.appendChild(opt);
-      });
-
-      state.currentSeason = targetSeason || seasonsList[0].season_number;
-      state.currentEpisode = targetEpisode || 1;
-      seasonSelect.value = state.currentSeason;
-      episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
-
-      async function loadRegularSeasonEpisodes(seasonNum) {
+    async function loadRegularSeasonEpisodes(seasonNum) {
         episodesTrack.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading season episodes...</div>';
         let sData = await fetchTMDB(`/tv/${id}/season/${seasonNum}`);
 
@@ -2157,13 +2079,12 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       };
 
       loadRegularSeasonEpisodes(state.currentSeason);
-    }
   } else {
     seriesControls.style.display = 'none';
     if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
   }
 
-  // Auto-Select Best Player for Content Type (Movies vs Anime vs Cartoons)
+  // Auto-Select Best Player for Content Type (Anime gets AutoEmbed by default, others get VidLink)
   const isAnime = Boolean(
     details.isAnime ||
     (details.original_language === 'ja' && details.genres && details.genres.some(g => g.id === 16 || g.name === 'Animation')) ||
@@ -2171,31 +2092,33 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     (Array.isArray(details.origin_country) && details.origin_country.includes('JP') && details.genre_ids && details.genre_ids.includes(16))
   );
 
-  // Set default active server: VidLink 4K (Ultra HD & Full Sound) is default for all!
-  state.activeSourceType = 'vidlink';
+  // Set default active server: AutoEmbed for anime (guaranteed episodes), VidLink for others
+  state.activeSourceType = isAnime ? 'autoembed' : 'vidlink';
 
   // Stream Server Switcher (Modern Dropdown for PC and Mobile)
   const serverSelect = document.getElementById('player-server-select');
   if (serverSelect) {
     if (isAnime) {
       serverSelect.innerHTML = `
-        <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Jap/Eng Sound)</option>
-        <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
-        <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="vidsrc_cc">📺 Server 4: VidSrc CC (Cloud 4K - Zero Sandbox Block)</option>
-        <option value="vidsrc_xyz">🌐 Server 5: VidSrc XYZ (Global Mirror)</option>
-        <option value="vidsrc_net">☁️ Server 6: VidSrc Net (Direct Stream)</option>
-        <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
+        <option value="autoembed">🍥 Server 1: AutoEmbed (Sub/Dub HD & Anime)</option>
+        <option value="vidlink">⚡ Server 2: VidLink 4K (Ultra HD & Sound)</option>
+        <option value="axon">🎙️ Server 3: AXON Stream (English Dub & Sub HD)</option>
+        <option value="vidsrc">👑 Server 4: VidSrc PM (Multi-Mirror HD)</option>
+        <option value="vidsrc_cc">📺 Server 5: VidSrc CC (Cloud 4K)</option>
+        <option value="vidsrc_xyz">🌐 Server 6: VidSrc XYZ (Global Mirror)</option>
+        <option value="vidsrc_net">☁️ Server 7: VidSrc Net (Direct Stream)</option>
+        <option value="trailer">🎞️ Server 8: Official HD Trailer</option>
       `;
     } else {
       serverSelect.innerHTML = `
-        <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Direct Sound)</option>
-        <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
-        <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="vidsrc_cc">📺 Server 4: VidSrc CC (Cloud 4K - Zero Sandbox Block)</option>
-        <option value="vidsrc_xyz">🌐 Server 5: VidSrc XYZ (Global Mirror)</option>
-        <option value="vidsrc_net">☁️ Server 6: VidSrc Net (Direct Stream)</option>
-        <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
+        <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Sound)</option>
+        <option value="autoembed">🍥 Server 2: AutoEmbed (Sub/Dub HD)</option>
+        <option value="axon">🎙️ Server 3: AXON Stream (English Dub & Sub HD)</option>
+        <option value="vidsrc">👑 Server 4: VidSrc PM (Multi-Mirror HD)</option>
+        <option value="vidsrc_cc">📺 Server 5: VidSrc CC (Cloud 4K)</option>
+        <option value="vidsrc_xyz">🌐 Server 6: VidSrc XYZ (Global Mirror)</option>
+        <option value="vidsrc_net">☁️ Server 7: VidSrc Net (Direct Stream)</option>
+        <option value="trailer">🎞️ Server 8: Official HD Trailer</option>
       `;
     }
     serverSelect.value = state.activeSourceType;
@@ -2213,7 +2136,9 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   const nextServerBtn = document.getElementById('btn-next-server');
   if (nextServerBtn) {
     nextServerBtn.onclick = () => {
-      const serverOrder = ['vidlink', 'vidsrc', 'autoembed', 'vidsrc_cc', 'vidsrc_xyz', 'vidsrc_net'];
+      const serverOrder = isAnime
+        ? ['autoembed', 'vidlink', 'axon', 'vidsrc', 'vidsrc_cc', 'vidsrc_xyz', 'vidsrc_net']
+        : ['vidlink', 'autoembed', 'axon', 'vidsrc', 'vidsrc_cc', 'vidsrc_xyz', 'vidsrc_net'];
       const currentIndex = serverOrder.indexOf(state.activeSourceType);
       const nextIndex = (currentIndex + 1) % serverOrder.length;
       const nextServer = serverOrder[nextIndex];
@@ -2223,17 +2148,6 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       mountVideoPlayer(details, nextServer, state.currentSeason || 1, state.currentEpisode || 1, playSec);
       const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : nextServer;
       showToast(`Switched to ${label}`);
-    };
-  }
-
-  // 1-Click "✨ AXON Server" Native Player Button
-  const axonServerBtn = document.getElementById('btn-axon-server');
-  if (axonServerBtn) {
-    axonServerBtn.onclick = () => {
-      state.activeSourceType = 'axon';
-      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
-      mountVideoPlayer(details, 'axon', state.currentSeason || 1, state.currentEpisode || 1, playSec);
-      showToast('✨ AXON Server: Native Player Loaded (0 Ads)');
     };
   }
 
@@ -2538,7 +2452,7 @@ async function renderGenreTopShows(details, isTv) {
 // ==========================================================================
 // AXON Server: Native Stream Resolver (Anime & Movies Direct HLS)
 // ==========================================================================
-async function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSeconds = 0) {
+function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSeconds = 0) {
   const isAnime = Boolean(
     item.isAnime ||
     (item.original_language === 'ja' && item.genres && item.genres.some(g => g.id === 16 || g.name === 'Animation')) ||
@@ -2548,54 +2462,28 @@ async function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, star
 
   const title = item.title || item.name || 'AXON Stream';
   const poster = item.backdrop_path ? `${TMDB_IMG_URL}/w1280${item.backdrop_path}` : (item.poster_path ? `${TMDB_IMG_URL}/w500${item.poster_path}` : '');
+  
+  // For Anime, AutoEmbed maps sequential episodes (e.g. Naruto Shippūden Ep 163) under Season 1:
+  const streamSeason = isAnime ? 1 : (parseInt(season, 10) || 1);
+  const streamEpisode = parseInt(episode, 10) || 1;
 
-  // High-performance multi-bitrate ABR HLS stream with 1080p, 720p, 480p, 360p resolution levels & audio tracks
-  // This guarantees instant, reliable, zero-ad local playback testing on any browser
-  let streamUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
-  let subtitles = [
-    { label: 'English CC', url: 'https://bitmovin-a.akamaihd.net/content/sintel/subtitles/subtitles_en.vtt', lang: 'en' },
-    { label: 'Spanish', url: 'https://bitmovin-a.akamaihd.net/content/sintel/subtitles/subtitles_es.vtt', lang: 'es' }
-  ];
-
-  // Try fetching live Anime HLS Stream if this title is an anime
-  if (isAnime) {
-    try {
-      const cleanTitle = encodeURIComponent(title.replace(/[^\w\s]/gi, '').trim());
-      const searchRes = await fetch(`https://consumet-api.vercel.app/anime/gogoanime/${cleanTitle}`, { signal: AbortSignal.timeout(2500) });
-      if (searchRes.ok) {
-        const data = await searchRes.json();
-        const topHit = (data.results && data.results[0]) || null;
-        if (topHit && topHit.id) {
-          const epId = `${topHit.id}-episode-${episode}`;
-          const watchRes = await fetch(`https://consumet-api.vercel.app/anime/gogoanime/watch/${epId}`, { signal: AbortSignal.timeout(2500) });
-          if (watchRes.ok) {
-            const watchData = await watchRes.json();
-            const m3u8Source = (watchData.sources || []).find(s => s.isM3U8) || watchData.sources?.[0];
-            if (m3u8Source && m3u8Source.url) {
-              streamUrl = m3u8Source.url;
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.info('[AXON Server]: Live anime stream resolver using local high-speed stream:', err.message);
-    }
-  }
+  // Real content stream URL - guaranteed zero sample video fallback
+  const streamUrl = isTv
+    ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/`
+    : `https://player.autoembed.co/embed/movie/${item.id}/`;
 
   return {
     url: streamUrl,
-    title: `${title}${isTv ? ` (S${season} : E${episode})` : ''}`,
-    poster: poster,
+    streamUrl: streamUrl,
     tmdbId: item.id,
+    title: `${title}${isTv ? ` (S${season} : E${streamEpisode})` : ''}`,
+    poster: poster,
     mediaType: isTv ? 'tv' : 'movie',
-    season: parseInt(season, 10) || 1,
-    episode: parseInt(episode, 10) || 1,
-    subtitles: subtitles,
-    audioTracks: [
-      { label: 'Original Audio', lang: 'orig', default: true },
-      { label: 'English Stereo', lang: 'en' },
-      { label: 'Hindi Dub', lang: 'hi' }
-    ]
+    isTv: Boolean(isTv),
+    isAnime: Boolean(isAnime),
+    season: streamSeason,
+    episode: streamEpisode,
+    startSeconds: startSeconds || 0
   };
 }
 
@@ -2621,42 +2509,61 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
   // Clean up native player before mounting
   destroyNativePlayer();
 
+  let playSeason = parseInt(season, 10) || 1;
+  let playEpisode = parseInt(episode, 10) || 1;
+
+  // Auto-correct season for anime / long series if episode number is out of bounds for the given season
+  // (e.g. Naruto Shippuden Ep 163 is in Season 8, not Season 1)
+  if (isTv && item.seasons && item.seasons.length > 0 && playEpisode > 30) {
+    const sObj = item.seasons.find(s => s.season_number === playSeason);
+    if (!sObj || (sObj.episode_count && playEpisode > sObj.episode_count)) {
+      let cumulative = 0;
+      for (const s of item.seasons) {
+        if (s.season_number === 0) continue;
+        const count = s.episode_count || 0;
+        if (playEpisode <= cumulative + count) {
+          playSeason = s.season_number;
+          break;
+        }
+        cumulative += count;
+      }
+    }
+  }
+
   if (type === 'axon') {
     // ---------------------------------------------------------------
-    // ✨ AXON Server: Native ArtPlayer + HLS Multi-Track Engine (0 Ads)
+    // 🎙️ Server 3: AXON Stream (English Dub & Sub HD)
     // ---------------------------------------------------------------
-    badgeLabel = `✨ AXON Server (Native Player) • ${isTv ? `S${season} : E${episode}` : 'Direct 4K & ABR'}`;
+    badgeLabel = `🎙️ Server 3 (AXON Stream) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'English Dub & Sub HD'}`;
     if (badge) badge.textContent = badgeLabel;
 
-    cinemaScreen.innerHTML = `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #fff; gap: 0.8rem; background: #000;">
-        <div class="loader-spinner" style="width: 36px; height: 36px; border: 3px solid rgba(229,9,20,0.3); border-top-color: #e50914; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
-        <p style="font-size: 0.9rem; font-weight: 600; color: #cbd5e1;">Initializing AXON Native Player...</p>
-      </div>
-    `;
-
+    if (cinemaScreen) cinemaScreen.innerHTML = '';
     try {
-      const streamConfig = await resolveAxonNativeStream(item, isTv, season, episode, startSeconds);
+      const streamConfig = resolveAxonNativeStream(item, isTv, playSeason, playEpisode, startSeconds);
       const art = initNativePlayer(cinemaScreen, streamConfig);
       if (art) {
         state.axonPlayerInstance = art;
       }
+      showToast('AXON Player: Stream Active (0 Ads)');
     } catch (err) {
-      console.error('Failed to init AXON Native Player:', err);
-      showToast('⚠️ Native player error, switching to Server 1');
-      mountVideoPlayer(item, 'vidlink', season, episode, startSeconds);
-      return;
+      console.error('[AXON Player]: Initialization error:', err);
+      showToast(`AXON Player error: ${err.message || 'Failed to initialize'}`);
     }
 
-    state.currentStreamUrl = 'axon_native';
+    const serverSelect = document.getElementById('player-server-select');
+    if (serverSelect && serverSelect.value !== 'axon') {
+      serverSelect.value = 'axon';
+    }
+
+    state.currentStreamUrl = streamConfig.streamUrl || streamConfig.url;
     state.activePlayback = {
       id: item.id,
       title: item.title || item.name,
       poster_path: item.poster_path,
       backdrop_path: item.backdrop_path,
       isTv: isTv,
-      season: parseInt(season, 10) || 1,
-      episode: parseInt(episode, 10) || 1,
+      season: playSeason,
+      episode: playEpisode,
       currentTime: startSeconds || 0,
       duration: 0,
       lastSavedAt: Date.now()
@@ -2666,70 +2573,71 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   if (type === 'vidlink') {
     // ---------------------------------------------------------------
-    // ⚡ Server 1: VidLink 4K (Ultra HD & Full Audio)
+    // ⚡ Server: VidLink 4K (Ultra HD & Full Audio)
     // ---------------------------------------------------------------
-    badgeLabel = `⚡ Server 1 (VidLink 4K) • ${isTv ? `S${season} : E${episode}` : 'Ultra HD & Sound'}`;
+    const sNum = isAnime ? 2 : 1;
+    badgeLabel = `⚡ Server ${sNum} (VidLink 4K) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Ultra HD & Sound'}`;
     const paramsList = ['primaryColor=e50914'];
     if (startSeconds && startSeconds > 5) {
       paramsList.push(`startAt=${Math.floor(startSeconds)}`);
     }
     const params = paramsList.join('&');
     streamUrl = isTv
-      ? `https://vidlink.pro/tv/${item.id}/${season}/${episode}?${params}`
+      ? `https://vidlink.pro/tv/${item.id}/${playSeason}/${playEpisode}?${params}`
       : `https://vidlink.pro/movie/${item.id}?${params}`;
-
-  } else if (type === 'vidsrc') {
-    // ---------------------------------------------------------------
-    // 👑 Server 2: VidSrc PM (Multi-Mirror HD & Sound)
-    // ---------------------------------------------------------------
-    badgeLabel = `👑 Server 2 (VidSrc PM) • ${isTv ? `S${season} : E${episode}` : 'Multi-Mirror HD'}`;
-    streamUrl = isTv
-      ? `https://vidsrc.pm/embed/tv/${item.id}/${season}/${episode}`
-      : `https://vidsrc.pm/embed/movie/${item.id}`;
 
   } else if (type === 'autoembed') {
     // ---------------------------------------------------------------
-    // 🍥 Server 3: AutoEmbed (Sub/Dub HD & RabbitStream)
+    // 🍥 Server: AutoEmbed (Sub/Dub HD & RabbitStream)
     // ---------------------------------------------------------------
-    badgeLabel = isAnime
-      ? `🍥 Server 3 (AutoEmbed Sub/Dub) • ${isTv ? `S${season} : E${episode}` : 'Sub/Dub HD'}`
-      : `🍥 Server 3 (AutoEmbed) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server HD'}`;
+    const sNum = isAnime ? 1 : 2;
+    badgeLabel = `🍥 Server ${sNum} (AutoEmbed Sub/Dub) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Sub/Dub HD'}`;
+    const autoEmbedSeason = isAnime ? 1 : playSeason;
     streamUrl = isTv
-      ? `https://player.autoembed.co/embed/tv/${item.id}/${season}-${episode}/`
+      ? `https://player.autoembed.co/embed/tv/${item.id}/${autoEmbedSeason}-${playEpisode}/`
       : `https://player.autoembed.co/embed/movie/${item.id}/`;
+
+  } else if (type === 'vidsrc') {
+    // ---------------------------------------------------------------
+    // 👑 Server 4: VidSrc PM (Multi-Mirror HD & Sound)
+    // ---------------------------------------------------------------
+    badgeLabel = `👑 Server 4 (VidSrc PM) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Multi-Mirror HD'}`;
+    streamUrl = isTv
+      ? `https://vidsrc.pm/embed/tv/${item.id}/${playSeason}/${playEpisode}`
+      : `https://vidsrc.pm/embed/movie/${item.id}`;
 
   } else if (type === 'vidsrc_cc') {
     // ---------------------------------------------------------------
-    // 📺 Server 4: VidSrc CC (Cloud 4K - Zero Sandbox Block)
+    // 📺 Server 5: VidSrc CC (Cloud 4K - Zero Sandbox Block)
     // ---------------------------------------------------------------
-    badgeLabel = `📺 Server 4 (VidSrc CC) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K'}`;
+    badgeLabel = `📺 Server 5 (VidSrc CC) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Cloud 4K'}`;
     streamUrl = isTv
-      ? `https://vidsrc.cc/v2/embed/tv/${item.id}/${season}/${episode}`
+      ? `https://vidsrc.cc/v2/embed/tv/${item.id}/${playSeason}/${playEpisode}`
       : `https://vidsrc.cc/v2/embed/movie/${item.id}`;
 
   } else if (type === 'vidsrc_xyz') {
     // ---------------------------------------------------------------
-    // 🌐 Server 5: VidSrc XYZ (Global Mirror)
+    // 🌐 Server 6: VidSrc XYZ (Global Mirror)
     // ---------------------------------------------------------------
-    badgeLabel = `🌐 Server 5 (VidSrc XYZ) • ${isTv ? `S${season} : E${episode}` : 'Global Mirror'}`;
+    badgeLabel = `🌐 Server 6 (VidSrc XYZ) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Global Mirror'}`;
     streamUrl = isTv
-      ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=${season}&episode=${episode}`
+      ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=${playSeason}&episode=${playEpisode}`
       : `https://vidsrc.xyz/embed/movie?tmdb=${item.id}`;
 
   } else if (type === 'vidsrc_net') {
     // ---------------------------------------------------------------
-    // ☁️ Server 6: VidSrc Net (Direct Stream)
+    // ☁️ Server 7: VidSrc Net (Direct Stream)
     // ---------------------------------------------------------------
-    badgeLabel = `☁️ Server 6 (VidSrc Net) • ${isTv ? `S${season} : E${episode}` : 'Direct Stream'}`;
+    badgeLabel = `☁️ Server 7 (VidSrc Net) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Direct Stream'}`;
     streamUrl = isTv
-      ? `https://vidsrc.net/embed/tv/${item.id}/${season}/${episode}`
+      ? `https://vidsrc.net/embed/tv/${item.id}/${playSeason}/${playEpisode}`
       : `https://vidsrc.net/embed/movie/${item.id}`;
 
   } else if (type === 'trailer') {
     // ---------------------------------------------------------------
-    // 🎞️ Official HD Trailer
+    // 🎞️ Server 8: Official HD Trailer
     // ---------------------------------------------------------------
-    badgeLabel = '🎞️ Server 7: Official HD Trailer';
+    badgeLabel = '🎞️ Server 8: Official HD Trailer';
     const videos = item.videos ? item.videos.results : [];
     const trailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
     if (trailer && trailer.key) {
