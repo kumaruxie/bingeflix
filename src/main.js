@@ -1298,8 +1298,138 @@ document.querySelectorAll('.genre-pill').forEach(pill => {
 });
 
 // ==========================================================================
-// Real-Time Search with Debounce
+// Intelligent Typo-Tolerant Search Engine with Rich Media Badges
 // ==========================================================================
+const COMMON_SEARCH_TYPOS = {
+  // Anime typos & shortcuts
+  'naroto': 'Naruto',
+  'narutto': 'Naruto',
+  'boroto': 'Boruto',
+  'one peace': 'One Piece',
+  'onepeice': 'One Piece',
+  'onepece': 'One Piece',
+  'one peice': 'One Piece',
+  'lufy': 'One Piece',
+  'jujutso': 'Jujutsu Kaisen',
+  'jujutsu': 'Jujutsu Kaisen',
+  'jjk': 'Jujutsu Kaisen',
+  'sukuna': 'Jujutsu Kaisen',
+  'gojo': 'Jujutsu Kaisen',
+  'demonslayer': 'Demon Slayer',
+  'demon slayer': 'Demon Slayer: Kimetsu no Yaiba',
+  'kimetsu': 'Demon Slayer: Kimetsu no Yaiba',
+  'tanjiro': 'Demon Slayer: Kimetsu no Yaiba',
+  'sololeveling': 'Solo Leveling',
+  'solo leveling': 'Solo Leveling',
+  'jinwoo': 'Solo Leveling',
+  'bleech': 'Bleach',
+  'deathnote': 'Death Note',
+  'death note': 'Death Note',
+  'attack on titan': 'Attack on Titan',
+  'aot': 'Attack on Titan',
+  'shingeki': 'Attack on Titan',
+  'chainsaw': 'Chainsaw Man',
+  'chainsawman': 'Chainsaw Man',
+  'dragonball': 'Dragon Ball',
+  'dragon ball': 'Dragon Ball Z',
+  'dbz': 'Dragon Ball Z',
+  'dbs': 'Dragon Ball Super',
+  'tokyoghoul': 'Tokyo Ghoul',
+  'tokyogoul': 'Tokyo Ghoul',
+  'hunter x hunter': 'Hunter x Hunter',
+  'hxh': 'Hunter x Hunter',
+  'my hero': 'My Hero Academia',
+  'mha': 'My Hero Academia',
+  'boku no hero': 'My Hero Academia',
+  'vinland': 'Vinland Saga',
+  'haiku': 'Haikyu!!',
+  'haikyu': 'Haikyu!!',
+  'dr stone': 'Dr. STONE',
+  'drstone': 'Dr. STONE',
+  'spy family': 'SPY x FAMILY',
+  'spyxfamily': 'SPY x FAMILY',
+  'pokemon': 'Pokémon',
+  'pokimon': 'Pokémon',
+  'doremon': 'Doraemon',
+  'doraemon': 'Doraemon',
+  'shinchan': 'Shin-chan',
+  'shin chan': 'Shin-chan',
+
+  // Hollywood Movies & TV Typos
+  'avengrs': 'The Avengers',
+  'avenger': 'The Avengers',
+  'avengers end game': 'Avengers: Endgame',
+  'endgame': 'Avengers: Endgame',
+  'infinity war': 'Avengers: Infinity War',
+  'spiderman': 'Spider-Man',
+  'spider man': 'Spider-Man',
+  'batman': 'The Batman',
+  'dark knight': 'The Dark Knight',
+  'ironman': 'Iron Man',
+  'iron man': 'Iron Man',
+  'interstelar': 'Interstellar',
+  'oppenhiemer': 'Oppenheimer',
+  'oppenhimr': 'Oppenheimer',
+  'openheimer': 'Oppenheimer',
+  'inceptoin': 'Inception',
+  'inseptoin': 'Inception',
+  'avatar': 'Avatar',
+  'stranger things': 'Stranger Things',
+  'strangerthings': 'Stranger Things',
+  'deadpool': 'Deadpool',
+  'dedpool': 'Deadpool',
+  'wolverine': 'Deadpool & Wolverine',
+  'gladiator': 'Gladiator',
+  'dune': 'Dune: Part Two',
+  'fast and furious': 'Fast & Furious',
+  'fast & furious': 'Fast & Furious',
+  'godzilla': 'Godzilla x Kong: The New Empire',
+
+  // Indian / Bollywood Cinema Typos
+  'pushpa': 'Pushpa',
+  'pushpa 2': 'Pushpa 2: The Rule',
+  'kgf': 'K.G.F: Chapter 1',
+  'kgf 2': 'K.G.F: Chapter 2',
+  'bahubali': 'Baahubali: The Beginning',
+  'baahubali': 'Baahubali: The Beginning',
+  'kalki': 'Kalki 2898-AD',
+  'stree 2': 'Stree 2',
+  'stree': 'Stree',
+  'jawan': 'Jawan',
+  'pathaan': 'Pathaan',
+  'animal': 'Animal',
+  'sholay': 'Sholay',
+  'dangal': 'Dangal',
+  '3 idiots': '3 Idiots'
+};
+
+function resolveSearchQuery(rawQuery) {
+  const cleaned = rawQuery.trim();
+  const lower = cleaned.toLowerCase();
+
+  // 1. Exact match in typo dictionary
+  if (COMMON_SEARCH_TYPOS[lower]) {
+    return { query: COMMON_SEARCH_TYPOS[lower], corrected: true, original: rawQuery };
+  }
+
+  // 2. Substring check for multi-word queries
+  let correctedStr = cleaned;
+  let didCorrect = false;
+  for (const [typo, fix] of Object.entries(COMMON_SEARCH_TYPOS)) {
+    const regex = new RegExp(`\\b${typo}\\b`, 'gi');
+    if (regex.test(correctedStr)) {
+      correctedStr = correctedStr.replace(regex, fix);
+      didCorrect = true;
+    }
+  }
+
+  if (didCorrect) {
+    return { query: correctedStr, corrected: true, original: rawQuery };
+  }
+
+  return { query: cleaned, corrected: false, original: rawQuery };
+}
+
 const searchInput = document.getElementById('search-input');
 const searchDropdown = document.getElementById('search-dropdown');
 const searchClear = document.getElementById('search-clear');
@@ -1316,29 +1446,51 @@ searchInput.addEventListener('input', (e) => {
   }
 
   searchDebounceTimer = setTimeout(async () => {
-    let q = query;
-    const qLower = q.toLowerCase();
-    if (qLower.includes('doremon')) q = q.replace(/doremon/gi, 'doraemon');
-    else if (qLower === 'spiderman') q = 'spider-man';
-    else if (qLower === 'shinchan') q = 'shin chan';
+    const resolved = resolveSearchQuery(query);
+    const searchQuery = resolved.query;
 
     const [movieData, tvData] = await Promise.all([
-      fetchTMDB('/search/movie', { query: q }),
-      fetchTMDB('/search/tv', { query: q })
+      fetchTMDB('/search/movie', { query: searchQuery }),
+      fetchTMDB('/search/tv', { query: searchQuery })
     ]);
 
-    const combined = [
+    let combined = [
       ...((movieData && movieData.results) || []),
       ...((tvData && tvData.results) || []).map(t => ({ ...t, isTv: true }))
-    ].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    ];
+
+    // Also scan local catalog tracks for instant rich local hits
+    const qLower = searchQuery.toLowerCase();
+    const localMatches = [];
+    const localPool = [
+      ...(state.anime || []),
+      ...(state.animeTonight || []),
+      ...(state.bollywood || []),
+      ...(state.hollywood || []),
+      ...(state.series || []),
+      ...(state.trending || [])
+    ];
+    for (const item of localPool) {
+      if (!item || !item.id) continue;
+      const title = (item.title || item.name || '').toLowerCase();
+      if (title.includes(qLower) || qLower.includes(title)) {
+        if (!localMatches.some(m => m.id === item.id) && !combined.some(c => c.id === item.id)) {
+          localMatches.push(item);
+        }
+      }
+    }
+
+    combined = [...localMatches, ...combined]
+      .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+      .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
     if (combined.length > 0) {
-      renderSearchDropdown(combined.slice(0, 8));
+      renderSearchDropdown(combined.slice(0, 8), resolved.corrected ? resolved.query : null);
     } else {
       searchDropdown.innerHTML = '<div style="padding: 1.2rem; text-align: center; color: var(--text-muted);">No movies or series found</div>';
       searchDropdown.style.display = 'block';
     }
-  }, 260);
+  }, 220);
 });
 
 searchClear.addEventListener('click', () => {
@@ -1347,8 +1499,16 @@ searchClear.addEventListener('click', () => {
   searchDropdown.style.display = 'none';
 });
 
-function renderSearchDropdown(results) {
+function renderSearchDropdown(results, typoCorrection = null) {
   searchDropdown.innerHTML = '';
+
+  if (typoCorrection) {
+    const notice = document.createElement('div');
+    notice.className = 'search-did-you-mean';
+    notice.innerHTML = `<span>💡 Showing results for <strong>"${typoCorrection}"</strong></span>`;
+    searchDropdown.appendChild(notice);
+  }
+
   results.forEach(item => {
     const div = document.createElement('div');
     div.className = 'search-result-item';
@@ -1360,16 +1520,18 @@ function renderSearchDropdown(results) {
     const rating = item.vote_average ? item.vote_average.toFixed(1) : 'NR';
     const title = item.title || item.name || 'Untitled';
     const typeLabel = item.isTv ? 'Series' : 'Movie';
+    const isAnime = item.genre_ids?.includes(16) || (item.name && /[^\x00-\x7F]/.test(item.name)) || (item.origin_country && item.origin_country.includes('JP'));
 
     div.innerHTML = `
-      <img class="search-thumb" src="${posterSrc}" alt="${title}" />
+      <img class="search-thumb" src="${posterSrc}" alt="${title}" loading="lazy" />
       <div class="search-info">
         <h4>${title}</h4>
         <div class="search-meta">
-          <span>★ ${rating}</span>
+          <span class="search-tag-pill search-tag-rating">★ ${rating}</span>
           ${year ? `<span>•</span><span>${year}</span>` : ''}
           <span>•</span>
-          <span>${typeLabel}</span>
+          <span class="search-tag-pill search-tag-type">${isAnime ? 'Anime' : typeLabel}</span>
+          <span class="search-tag-pill search-tag-quality">4K UHD</span>
         </div>
       </div>
     `;
@@ -3346,29 +3508,22 @@ function setupAuthSystem() {
         return;
       }
       if (signupEmailInput && signupEmailInput.classList.contains('is-invalid')) {
-        showAuthAlert('An account with this email address already exists. Only 1 account per email.');
+        showAuthAlert('An account with this email address already exists. Please sign in or use "Forgot Password".');
         return;
       }
 
       if (submitBtn) submitBtn.disabled = true;
 
       try {
-        const { user, needsEmailConfirmation } = await signUpWithEmail(email, password, name, selectedAvatarKey);
+        const { user } = await signUpWithEmail(email, password, name, selectedAvatarKey);
         if (user) {
-          if (needsEmailConfirmation) {
-            showAuthAlert('Account created! Please check your Gmail/Email to confirm your account (or disable "Confirm email" in Supabase Dashboard for instant login).', true);
-            showToast('📧 Verification link sent to your email!');
-            formSignup.reset();
-            setTimeout(() => setAuthTab('login'), 3500);
-          } else {
-            state.currentUser = user;
-            updateUserUI();
-            closeAuthModal();
-            showToast(`Account created! Welcome, ${user.name || user.username}!`);
-            formSignup.reset();
-            if (userIcon) userIcon.innerHTML = '';
-            if (emailIcon) emailIcon.innerHTML = '';
-          }
+          state.currentUser = user;
+          updateUserUI();
+          closeAuthModal();
+          showToast('🎉 Account created successfully!');
+          formSignup.reset();
+          if (userIcon) userIcon.innerHTML = '';
+          if (emailIcon) emailIcon.innerHTML = '';
         }
       } catch (err) {
         showAuthAlert(err.message || 'Could not create account. Please try again.');

@@ -943,51 +943,61 @@
         </div>
       </div>
 
-      <!-- Profile Settings Modal (Edit Username & Anime Avatar) -->
+      <!-- HiAnime-Style Profile Settings Modal (Edit Username & Anime Avatar) -->
       <div class="modal-backdrop" id="profile-settings-modal" style="display: none;">
-        <div class="auth-card" style="max-width: 440px; padding: 2.2rem 2rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.4rem;">
-            <div>
-              <h2 style="font-size: 1.35rem; margin: 0; font-family: var(--font-heading); color: #fff;">Profile Settings</h2>
-              <p style="margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--text-secondary);">Customize your username and anime avatar</p>
+        <div class="auth-card hianime-profile-card">
+          <!-- Profile Card Header -->
+          <div class="hianime-profile-header">
+            <div class="hianime-header-left">
+              <h2 class="hianime-modal-title">Profile Settings</h2>
             </div>
-            <button type="button" class="search-clear-btn" id="close-profile-settings-btn" style="display: block; font-size: 1.5rem; color: var(--text-muted);">&times;</button>
+            <button type="button" class="search-clear-btn hianime-close-btn" id="close-profile-settings-btn" title="Close Settings">&times;</button>
           </div>
 
           <div id="settings-alert-box" class="auth-alert-box" style="display: none;"></div>
 
-          <form id="form-profile-settings" class="auth-form-body">
-            <!-- Current Avatar Preview & Grid -->
-            <div class="form-group" style="text-align: center; margin-bottom: 1rem;">
-              <div style="width: 72px; height: 72px; margin: 0 auto 0.6rem; border-radius: 50%; overflow: hidden; border: 2.5px solid var(--accent-red); box-shadow: 0 0 20px rgba(229, 9, 20, 0.4); background: #111;">
-                <img id="settings-current-avatar-img" src="./avatars/goku.jpg" alt="Profile Avatar" style="width: 100%; height: 100%; object-fit: cover;" />
+          <!-- Profile Spotlight Card -->
+          <div class="hianime-user-spotlight">
+            <div class="hianime-avatar-ring-wrap">
+              <img id="settings-current-avatar-img" src="./avatars/goku.jpg" alt="Profile Avatar" class="hianime-hero-avatar-img" />
+              <div class="hianime-avatar-glow-ring"></div>
+            </div>
+            <div class="hianime-user-details">
+              <div class="hianime-selected-char-name">
+                Avatar: <span id="settings-selected-avatar-name">Goku</span>
               </div>
-              <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                <span style="font-size: 0.84rem; color: var(--text-secondary);">Select Anime Icon</span>
-                <span id="settings-selected-avatar-name" style="color: var(--accent-red); font-weight: 700; font-size: 0.8rem;">Goku</span>
-              </label>
-              <div class="avatar-grid" id="settings-avatar-grid">
+            </div>
+          </div>
+
+          <form id="form-profile-settings" class="auth-form-body hianime-form-body">
+            <!-- Anime Character Avatar Picker -->
+            <div class="form-group hianime-avatar-picker-group">
+              <div class="hianime-section-label-row">
+                <span class="hianime-section-title">🎭 Select Anime Avatar</span>
+                <span class="hianime-section-hint">25+ Legendary Characters</span>
+              </div>
+              <div class="avatar-grid hianime-avatar-grid" id="settings-avatar-grid">
                 <!-- Dynamically populated with 25+ Anime Avatars -->
               </div>
             </div>
 
             <!-- Edit Username -->
             <div class="form-group">
-              <label for="settings-username">Username</label>
+              <label for="settings-username" class="hianime-input-label">Streaming Username</label>
               <div class="input-with-indicator">
-                <input type="text" id="settings-username" class="auth-input" placeholder="Enter new username" required minlength="3" maxlength="25" autocomplete="username" />
+                <input type="text" id="settings-username" class="auth-input hianime-input" placeholder="Enter new username" required minlength="3" maxlength="25" autocomplete="username" />
                 <span id="settings-username-status-icon" class="input-status-icon"></span>
               </div>
             </div>
 
             <!-- Email (Read-Only) -->
             <div class="form-group">
-              <label for="settings-email">Registered Email</label>
-              <input type="email" id="settings-email" class="auth-input" readonly disabled style="opacity: 0.65; cursor: not-allowed;" />
+              <label for="settings-email" class="hianime-input-label">Registered Supabase Email</label>
+              <input type="email" id="settings-email" class="auth-input hianime-input" readonly disabled />
             </div>
 
-            <button type="submit" class="btn-cta auth-submit-btn" id="btn-save-settings">
-              <span>Save Changes</span>
+            <button type="submit" class="btn-cta auth-submit-btn hianime-save-btn" id="btn-save-settings">
+              <span>Save Profile Changes</span>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             </button>
           </form>

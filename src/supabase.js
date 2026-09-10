@@ -6,8 +6,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || '';
-const SUPABASE_ANON_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || '';
+const SUPABASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || 'https://eahkapqioqgueegvwyyk.supabase.co';
+const SUPABASE_ANON_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || 'sb_publishable_HWg4nWlVyZbEjrkhGQw5pQ_cuUsQee1';
 
 export const isSupabaseConfigured = Boolean(
   SUPABASE_URL && 
@@ -84,7 +84,7 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
       .maybeSingle();
 
     if (existingEmail) {
-      throw new Error(`An account with the email "${cleanEmail}" already exists. Please sign in instead.`);
+      throw new Error(`An account with the email "${cleanEmail}" already exists. Please sign in or use "Forgot Password".`);
     }
   } catch (err) {
     if (err.message && err.message.includes('already exists')) throw err;
@@ -120,7 +120,7 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes('rate limit')) {
-      throw new Error('Supabase Email Rate Limit reached! Please turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant registration.');
+      throw new Error('Too many attempts. Please wait a few moments and try again.');
     }
     throw err;
   }
@@ -128,7 +128,7 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
   const { data, error } = authRes;
   if (error) {
     if (error.message && error.message.toLowerCase().includes('rate limit')) {
-      throw new Error('Supabase Email Rate Limit reached! Please turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant registration.');
+      throw new Error('Too many attempts. Please wait a few moments and try again.');
     }
     throw error;
   }
@@ -140,7 +140,7 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
 
   // Supabase returns empty identities array if user with this email already exists
   if (Array.isArray(authUser.identities) && authUser.identities.length === 0) {
-    throw new Error(`An account with the email "${cleanEmail}" already exists. Please sign in instead.`);
+    throw new Error(`An account with the email "${cleanEmail}" already exists. Please sign in or use "Forgot Password".`);
   }
 
   const userProfile = {
@@ -152,26 +152,38 @@ export async function signUpWithEmail(email, password, name, avatar = 'goku') {
     createdAt: authUser.created_at
   };
 
-  // Upsert profile in public.profiles table if session is active
-  if (data.session) {
+  let activeSession = data.session;
+  if (!activeSession) {
     try {
-      await supabase.from('profiles').upsert({
-        id: authUser.id,
+      const { data: loginData } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
-        username: cleanName,
-        avatar_url: avatar,
-        updated_at: new Date().toISOString()
+        password
       });
-    } catch (profileErr) {
-      console.warn('[Supabase] Profile creation warning:', profileErr.message);
+      if (loginData && loginData.session) {
+        activeSession = loginData.session;
+      }
+    } catch (e) {
+      console.warn('[Supabase] Auto-login fallback notice:', e);
     }
+  }
+
+  // Upsert profile in public.profiles table
+  try {
+    await supabase.from('profiles').upsert({
+      id: authUser.id,
+      email: cleanEmail,
+      username: cleanName,
+      avatar_url: avatar,
+      updated_at: new Date().toISOString()
+    });
+  } catch (profileErr) {
+    console.warn('[Supabase] Profile creation warning:', profileErr.message);
   }
 
   localStorage.setItem('bingeflix_current_user', JSON.stringify(userProfile));
   return { 
     user: userProfile, 
-    session: data.session,
-    needsEmailConfirmation: !data.session 
+    session: activeSession
   };
 }
 
@@ -223,7 +235,7 @@ export async function signInWithEmail(identifier, password) {
     });
   } catch (err) {
     if (err.message && err.message.toLowerCase().includes('email not confirmed')) {
-      throw new Error('Email not confirmed! Please check your Gmail/Email to confirm your account, or turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant password login.');
+      throw new Error('Please verify your email address before signing in.');
     }
     throw err;
   }
@@ -231,7 +243,7 @@ export async function signInWithEmail(identifier, password) {
   const { data, error } = signInRes;
   if (error) {
     if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
-      throw new Error('Email not confirmed! Please check your Gmail/Email to confirm your account, or turn OFF "Confirm email" in Supabase Dashboard (Auth > Providers > Email) for instant password login.');
+      throw new Error('Please verify your email address before signing in.');
     }
     throw error;
   }
@@ -245,13 +257,13 @@ export async function signInWithEmail(identifier, password) {
     avatar: (authUser.user_metadata && authUser.user_metadata.avatar) || 'goku'
   };
 
-  // Fetch updated profile from public.profiles
+  // Fetch updated profile from public.profiles or auto-create if missing
   try {
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', authUser.id)
-      .single();
+      .maybeSingle();
 
     if (profile) {
       userProfile = {
@@ -260,9 +272,18 @@ export async function signInWithEmail(identifier, password) {
         username: profile.username || userProfile.username,
         avatar: profile.avatar_url || userProfile.avatar
       };
+    } else {
+      // Auto-create missing profile row now that session is active
+      await supabase.from('profiles').upsert({
+        id: authUser.id,
+        email: cleanId.includes('@') ? cleanId.toLowerCase() : authUser.email,
+        username: userProfile.username,
+        avatar_url: userProfile.avatar,
+        updated_at: new Date().toISOString()
+      });
     }
   } catch (err) {
-    console.warn('[Supabase] Profile fetch notice:', err);
+    console.warn('[Supabase] Profile fetch/sync notice:', err);
   }
 
   localStorage.setItem('bingeflix_current_user', JSON.stringify(userProfile));
@@ -323,7 +344,7 @@ export async function checkEmailAvailability(email) {
   if (!isSupabaseConfigured) {
     const users = getLocalUsers();
     const taken = users.some(u => u.email && u.email.toLowerCase() === clean);
-    return { available: !taken, state: taken ? 'taken' : 'available', message: taken ? 'Email already in use' : 'Email available' };
+    return { available: !taken, state: taken ? 'taken' : 'available', message: taken ? 'Account already exists. Use Forgot Password.' : 'Email available' };
   }
 
   try {
@@ -338,7 +359,7 @@ export async function checkEmailAvailability(email) {
     }
 
     if (data) {
-      return { available: false, state: 'taken', message: 'Email already registered' };
+      return { available: false, state: 'taken', message: 'Account already exists. Use Forgot Password.' };
     }
     return { available: true, state: 'available', message: 'Email available' };
   } catch {
@@ -438,12 +459,21 @@ export async function getActiveUser() {
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
-        user.name = profile.name || user.name;
-        user.username = profile.name || user.username;
-        user.avatar = profile.avatar || user.avatar;
+        user.name = profile.username || user.name;
+        user.username = profile.username || user.username;
+        user.avatar = profile.avatar_url || user.avatar;
+      } else {
+        // Auto-heal missing profile row
+        await supabase.from('profiles').upsert({
+          id: authUser.id,
+          email: authUser.email,
+          username: user.username,
+          avatar_url: user.avatar,
+          updated_at: new Date().toISOString()
+        });
       }
     } catch {}
 
