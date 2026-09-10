@@ -580,7 +580,12 @@ function startApp() {
   // 1. Fetch live TMDB updates asynchronously in the background
   loadGenres();
   loadAllSections().then(() => {
-    if (window.location.hash && !window.location.hash.startsWith('#watch/')) {
+    const isWatchRoute = window.location.hash && window.location.hash.startsWith('#watch/');
+    if (isWatchRoute) {
+      // User is already watching, keep player view open undisturbed!
+      return;
+    }
+    if (window.location.hash && window.location.hash !== '#' && window.location.hash !== '#home' && window.location.hash !== '#anime') {
       handleHashRouting();
     } else {
       assembleCategoryPage(state.activeCategoryTab || 'anime');
@@ -2177,9 +2182,9 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Jap/Eng Sound)</option>
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="2embed">📺 Server 4: 2Embed (Direct Stream)</option>
-        <option value="vidsrc_cc">🌐 Server 5: VidSrc v2 (Cloud Fast)</option>
-        <option value="vidsrc_xyz">☁️ Server 6: VidSrc XYZ (Global Mirror)</option>
+        <option value="vidsrc_cc">📺 Server 4: VidSrc CC (Cloud 4K - Zero Sandbox Block)</option>
+        <option value="vidsrc_xyz">🌐 Server 5: VidSrc XYZ (Global Mirror)</option>
+        <option value="vidsrc_net">☁️ Server 6: VidSrc Net (Direct Stream)</option>
         <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
     } else {
@@ -2187,9 +2192,9 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Direct Sound)</option>
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="2embed">📺 Server 4: 2Embed (Direct Stream)</option>
-        <option value="vidsrc_cc">🌐 Server 5: VidSrc v2 (Cloud Fast)</option>
-        <option value="vidsrc_xyz">☁️ Server 6: VidSrc XYZ (Global Mirror)</option>
+        <option value="vidsrc_cc">📺 Server 4: VidSrc CC (Cloud 4K - Zero Sandbox Block)</option>
+        <option value="vidsrc_xyz">🌐 Server 5: VidSrc XYZ (Global Mirror)</option>
+        <option value="vidsrc_net">☁️ Server 6: VidSrc Net (Direct Stream)</option>
         <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
     }
@@ -2208,7 +2213,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   const nextServerBtn = document.getElementById('btn-next-server');
   if (nextServerBtn) {
     nextServerBtn.onclick = () => {
-      const serverOrder = ['vidlink', 'vidsrc', 'autoembed', '2embed', 'vidsrc_cc', 'vidsrc_xyz'];
+      const serverOrder = ['vidlink', 'vidsrc', 'autoembed', 'vidsrc_cc', 'vidsrc_xyz', 'vidsrc_net'];
       const currentIndex = serverOrder.indexOf(state.activeSourceType);
       const nextIndex = (currentIndex + 1) % serverOrder.length;
       const nextServer = serverOrder[nextIndex];
@@ -2575,32 +2580,32 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
       ? `https://player.autoembed.co/embed/tv/${item.id}/${season}-${episode}/`
       : `https://player.autoembed.co/embed/movie/${item.id}/`;
 
-  } else if (type === '2embed') {
-    // ---------------------------------------------------------------
-    // 📺 Server 4: 2Embed (Direct Stream & Fast Archive)
-    // ---------------------------------------------------------------
-    badgeLabel = `📺 Server 4 (2Embed) • ${isTv ? `S${season} : E${episode}` : 'Direct HD'}`;
-    streamUrl = isTv
-      ? `https://www.2embed.cc/embedtv/${item.id}&s=${season}&e=${episode}`
-      : `https://www.2embed.cc/embed/${item.id}`;
-
   } else if (type === 'vidsrc_cc') {
     // ---------------------------------------------------------------
-    // 🌐 Server 5: VidSrc v2 Cloud (Fast CDN)
+    // 📺 Server 4: VidSrc CC (Cloud 4K - Zero Sandbox Block)
     // ---------------------------------------------------------------
-    badgeLabel = `🌐 Server 5 (VidSrc v2) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K'}`;
+    badgeLabel = `📺 Server 4 (VidSrc CC) • ${isTv ? `S${season} : E${episode}` : 'Cloud 4K'}`;
     streamUrl = isTv
       ? `https://vidsrc.cc/v2/embed/tv/${item.id}/${season}/${episode}`
       : `https://vidsrc.cc/v2/embed/movie/${item.id}`;
 
   } else if (type === 'vidsrc_xyz') {
     // ---------------------------------------------------------------
-    // ☁️ Server 6: VidSrc XYZ (Global Mirror)
+    // 🌐 Server 5: VidSrc XYZ (Global Mirror)
     // ---------------------------------------------------------------
-    badgeLabel = `☁️ Server 6 (VidSrc XYZ) • ${isTv ? `S${season} : E${episode}` : 'Global Mirror'}`;
+    badgeLabel = `🌐 Server 5 (VidSrc XYZ) • ${isTv ? `S${season} : E${episode}` : 'Global Mirror'}`;
     streamUrl = isTv
       ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=${season}&episode=${episode}`
       : `https://vidsrc.xyz/embed/movie?tmdb=${item.id}`;
+
+  } else if (type === 'vidsrc_net') {
+    // ---------------------------------------------------------------
+    // ☁️ Server 6: VidSrc Net (Direct Stream)
+    // ---------------------------------------------------------------
+    badgeLabel = `☁️ Server 6 (VidSrc Net) • ${isTv ? `S${season} : E${episode}` : 'Direct Stream'}`;
+    streamUrl = isTv
+      ? `https://vidsrc.net/embed/tv/${item.id}/${season}/${episode}`
+      : `https://vidsrc.net/embed/movie/${item.id}`;
 
   } else if (type === 'trailer') {
     // ---------------------------------------------------------------
