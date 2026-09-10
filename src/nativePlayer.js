@@ -45,7 +45,8 @@ export function initNativePlayer(container, streamConfig = {}) {
     isTv = false,
     isAnime = false,
     season = 1,
-    episode = 1
+    episode = 1,
+    audioLang = 'en'
   } = streamConfig;
 
   // Resolve stream URL for the real movie / anime episode (NEVER a sample video)
@@ -53,10 +54,23 @@ export function initNativePlayer(container, streamConfig = {}) {
   if (!activeUrl && tmdbId) {
     const sNum = isAnime ? 1 : (parseInt(season, 10) || 1);
     const epNum = parseInt(episode, 10) || 1;
+    let queryParam = '';
+    if (audioLang === 'en') queryParam = isAnime ? '?dub=1&audio=en' : '?audio=en';
+    else if (audioLang === 'hi') queryParam = '?audio=hi';
+    else if (audioLang === 'ja') queryParam = '?sub=1&audio=ja';
+
     activeUrl = isTv
-      ? `https://player.autoembed.co/embed/tv/${tmdbId}/${sNum}-${epNum}/`
-      : `https://player.autoembed.co/embed/movie/${tmdbId}/`;
+      ? `https://player.autoembed.co/embed/tv/${tmdbId}/${sNum}-${epNum}/${queryParam}`
+      : `https://player.autoembed.co/embed/movie/${tmdbId}/${queryParam}`;
   }
+
+  const langBadgeText = audioLang === 'en'
+    ? '🇺🇸 ENGLISH DUB • 0 ADS'
+    : audioLang === 'hi'
+      ? '🇮🇳 HINDI DUB • 0 ADS'
+      : audioLang === 'ja'
+        ? '🇯🇵 JAPANESE SUB • 0 ADS'
+        : '🌐 MULTI-AUDIO • 0 ADS';
 
   mount.innerHTML = `
     <div id="axon-custom-player" class="axon-player-root" style="position: absolute; inset: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; user-select: none;">
@@ -68,7 +82,7 @@ export function initNativePlayer(container, streamConfig = {}) {
           <span style="color: #fff; font-size: 0.92rem; font-weight: 700; text-shadow: 0 2px 6px rgba(0,0,0,0.8);">${title}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="background: rgba(229,9,20,0.18); color: #ff4d5a; border: 1px solid rgba(229,9,20,0.4); font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 12px;">ENGLISH DUB / SUB • 0 ADS</span>
+          <span style="background: rgba(229,9,20,0.18); color: #ff4d5a; border: 1px solid rgba(229,9,20,0.4); font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 12px;">${langBadgeText}</span>
         </div>
       </div>
 

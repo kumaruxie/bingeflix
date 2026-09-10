@@ -20,7 +20,7 @@
     <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
-    <script type="module" crossorigin src="./assets/index-DwWndZob.js"></script>
+    <script type="module" crossorigin src="./assets/index-CXhMxHh9.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Bcv4Eyfd.css">
   </head>
   <body>
@@ -720,6 +720,20 @@
                 </button>
                 <button class="btn-cta btn-watchlist small popout-btn" id="player-external-btn" title="Open Stream in Full Tab">
                   ↗ Pop-out
+                </button>
+              </div>
+            </div>
+
+            <!-- Audio Language / Dub Switcher Bar -->
+            <div class="player-audio-control-bar" id="player-audio-control-bar">
+              <div class="audio-control-left">
+                <span class="audio-bar-title">🎧 Audio Track / Dub:</span>
+                <div class="audio-lang-pills" id="audio-lang-pills"></div>
+              </div>
+              <div class="audio-control-right">
+                <div class="audio-server-hint" id="audio-server-hint"></div>
+                <button type="button" class="btn-audio-guide" id="btn-open-audio-guide" title="Audio Guide">
+                  <span>ℹ️ Audio Guide</span>
                 </button>
               </div>
             </div>

@@ -172,6 +172,7 @@ const state = {
   currentSeason: 1,
   currentEpisode: 1,
   activeSourceType: 'vidlink',
+  activeAudioLang: 'en',
   currentStreamUrl: '',
   activeLibraryTab: 'watchlist',
   activeCategoryTab: 'anime',
@@ -2531,6 +2532,9 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   // Mount Video Player (mounts video & in-player overlay controls)
   mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1, startSeconds);
 
+  // Initialize Audio Language / Dub Switcher Bar
+  setupAudioLanguageSelector(details, isTv);
+
   // Record into Watch History & Continue Watching
   recordMovieToHistory(details);
   recordContinueWatching(details, state.currentSeason || 1, state.currentEpisode || 1, startSeconds);
@@ -2624,112 +2628,131 @@ function setupAudioLanguageSelector(details, isTv) {
   if (!container) return;
   container.innerHTML = '';
 
-  function syncSourceButtons(activeType) {
-    const sSelect = document.getElementById('player-server-select');
-    if (sSelect) sSelect.value = activeType;
-    document.querySelectorAll('.source-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.server === activeType);
-    });
-  }
-
-  function createPill(text, isActive, onClick) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `lang-pill ${isActive ? 'active' : ''}`;
-    btn.textContent = text;
-    btn.onclick = () => {
-      container.querySelectorAll('.lang-pill').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      onClick();
-    };
-    return btn;
-  }
-
   const origLang = (details.original_language || 'en').toLowerCase();
   const spokenLangs = details.spoken_languages || [];
   const spokenCodes = spokenLangs.map(l => (l.iso_639_1 || '').toLowerCase());
   const isIndianMovie = origLang === 'hi' || ['te', 'ta', 'ml', 'kn', 'bn', 'mr', 'pa'].includes(origLang) || spokenCodes.includes('hi');
   const isAnime = Boolean(
+    details.isAnime ||
     (origLang === 'ja' && details.genres && details.genres.some(g => g.id === 16 || g.name === 'Animation')) ||
-    (details.genre_ids && details.genre_ids.includes(16) && origLang === 'ja')
+    (details.genre_ids && details.genre_ids.includes(16) && origLang === 'ja') ||
+    (Array.isArray(details.origin_country) && details.origin_country.includes('JP') && details.genre_ids && details.genre_ids.includes(16))
   );
 
   const origSpoken = spokenLangs.find(l => l.iso_639_1 && l.iso_639_1.toLowerCase() === origLang);
   const origLangLabel = origSpoken ? origSpoken.english_name : origLang.toUpperCase();
 
-  if (isIndianMovie) {
-    // 100% Original Hindi / Indian Audio
-    const hiPill = createPill('🇮🇳 Hindi (Original Audio)', true, () => {
-      state.activeAudioLang = 'hi';
-      showToast('Playing 100% Original Hindi Audio');
-    });
-    container.appendChild(hiPill);
+  // Set intelligent default audio language if not set or context changed
+  if (!state.activeAudioLang) {
+    if (isIndianMovie) state.activeAudioLang = 'hi';
+    else if (isAnime) state.activeAudioLang = 'en'; // User preference: English Dub
+    else state.activeAudioLang = 'en';
+  }
 
-    if (hintContainer) {
-      hintContainer.innerHTML = '<span style="font-size: 0.82rem; color: #22c55e;">✔ 100% Original Hindi Audio</span>';
+  function updateHint(langKey) {
+    if (!hintContainer) return;
+    if (langKey === 'en') {
+      hintContainer.innerHTML = '<span class="audio-status-pill pill-info"><span class="pill-dot"></span>✔ 🇺🇸 English Dub Active</span>';
+    } else if (langKey === 'ja') {
+      hintContainer.innerHTML = '<span class="audio-status-pill"><span class="pill-dot"></span>✔ 🇯🇵 Japanese (Sub) Active</span>';
+    } else if (langKey === 'hi') {
+      hintContainer.innerHTML = '<span class="audio-status-pill"><span class="pill-dot"></span>✔ 🇮🇳 Hindi Dub Active</span>';
+    } else {
+      hintContainer.innerHTML = '<span class="audio-status-pill"><span class="pill-dot"></span>✔ 🌐 Original Audio Active</span>';
     }
+  }
 
-  } else if (isAnime) {
-    // Anime: Japanese Original + English Dub + Hindi Dub
-    const currentLang = state.activeAudioLang || 'ja';
+  function createPill(label, langKey, onClick) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `lang-pill ${state.activeAudioLang === langKey ? 'active' : ''}`;
+    btn.dataset.lang = langKey;
+    btn.textContent = label;
+    btn.onclick = () => {
+      container.querySelectorAll('.lang-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.activeAudioLang = langKey;
+      updateHint(langKey);
+      onClick();
+    };
+    return btn;
+  }
 
-    const jaPill = createPill('🇯🇵 Japanese (Original)', currentLang === 'ja', () => {
-      state.activeAudioLang = 'ja';
-      state.activeSourceType = 'vidlink';
-      syncSourceButtons('vidlink');
-      mountVideoPlayer(details, 'vidlink', state.currentSeason || 1, state.currentEpisode || 1);
-      showToast('Playing Original Japanese Audio on Server 1 (VidLink)');
-    });
-    container.appendChild(jaPill);
+  function handleLangSwitch(langKey, label) {
+    const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+    // Reload player iframe with newly selected audio track & dub parameter
+    mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1, playSec);
+    showToast(`🎧 Audio changed to ${label} - Stream Reloaded`);
+  }
 
-    const enPill = createPill('🇺🇸 English (Dub / Sub)', currentLang === 'en', () => {
-      state.activeAudioLang = 'en';
-      state.activeSourceType = 'vidlink';
-      syncSourceButtons('vidlink');
-      mountVideoPlayer(details, 'vidlink', state.currentSeason || 1, state.currentEpisode || 1);
-      showToast('Playing English Sub/Dub on Server 1 (VidLink 4K)');
+  if (isAnime) {
+    // 🍥 ANIME: English Dub (Primary) + Japanese Sub + Hindi Dub + Multi-Audio
+    const enPill = createPill('🇺🇸 English Dub', 'en', () => {
+      handleLangSwitch('en', '🇺🇸 English Dub');
     });
     container.appendChild(enPill);
 
-    const hiPill = createPill('🇮🇳 Hindi (Dubbed)', currentLang === 'hi', () => {
-      state.activeAudioLang = 'hi';
-      state.activeSourceType = 'vidsrc';
-      syncSourceButtons('vidsrc');
-      mountVideoPlayer(details, 'vidsrc', state.currentSeason || 1, state.currentEpisode || 1);
-      showToast('Connecting to Multi-Audio Stream on Server 2 (VidSrc PM)');
+    const jaPill = createPill('🇯🇵 Japanese (Sub)', 'ja', () => {
+      handleLangSwitch('ja', '🇯🇵 Japanese (Sub)');
+    });
+    container.appendChild(jaPill);
+
+    const hiPill = createPill('🇮🇳 Hindi Dub', 'hi', () => {
+      handleLangSwitch('hi', '🇮🇳 Hindi Dub');
     });
     container.appendChild(hiPill);
 
-    if (hintContainer) {
-      hintContainer.innerHTML = '<span style="font-size: 0.82rem; color: #94a3b8;">Anime Multi-Audio Sub & Dub available</span>';
+    const multiPill = createPill('🌐 Multi-Audio HD', 'multi', () => {
+      handleLangSwitch('multi', '🌐 Multi-Audio');
+    });
+    container.appendChild(multiPill);
+
+  } else if (isIndianMovie) {
+    // 🇮🇳 INDIAN CINEMA: Hindi Original Audio + English Sub/Dub + Regional Original
+    const hiPill = createPill('🇮🇳 Hindi (Original Audio)', 'hi', () => {
+      handleLangSwitch('hi', '🇮🇳 Hindi (Original Audio)');
+    });
+    container.appendChild(hiPill);
+
+    const enPill = createPill('🇺🇸 English (Sub / Dub)', 'en', () => {
+      handleLangSwitch('en', '🇺🇸 English (Sub / Dub)');
+    });
+    container.appendChild(enPill);
+
+    if (origLang !== 'hi') {
+      const regPill = createPill(`🇮🇳 ${origLangLabel} (Original)`, 'orig', () => {
+        handleLangSwitch('orig', `🇮🇳 ${origLangLabel} (Original)`);
+      });
+      container.appendChild(regPill);
     }
 
   } else {
-    // Hollywood / International Content
-    const currentLang = state.activeAudioLang || 'orig';
-
-    const origPill = createPill(`🌐 Original (${origLangLabel})`, currentLang === 'orig', () => {
-      state.activeAudioLang = 'orig';
-      state.activeSourceType = 'vidlink';
-      syncSourceButtons('vidlink');
-      mountVideoPlayer(details, 'vidlink', state.currentSeason || 1, state.currentEpisode || 1);
-      showToast(`Playing ${origLangLabel} Original Audio on Server 1`);
+    // 🎬 HOLLYWOOD & GLOBAL: English Dub/Original + Hindi Dubbed + Original + Spanish
+    const enPill = createPill('🇺🇸 English (Original / Dub)', 'en', () => {
+      handleLangSwitch('en', '🇺🇸 English');
     });
-    container.appendChild(origPill);
+    container.appendChild(enPill);
 
-    const hiPill = createPill('🇮🇳 Hindi (Dubbed)', currentLang === 'hi', () => {
-      state.activeAudioLang = 'hi';
-      state.activeSourceType = 'vidsrc';
-      syncSourceButtons('vidsrc');
-      mountVideoPlayer(details, 'vidsrc', state.currentSeason || 1, state.currentEpisode || 1);
-      showToast('Streaming Multi-Audio on Server 2 (VidSrc PM)');
+    const hiPill = createPill('🇮🇳 Hindi (Dubbed)', 'hi', () => {
+      handleLangSwitch('hi', '🇮🇳 Hindi (Dubbed)');
     });
     container.appendChild(hiPill);
 
-    if (hintContainer) {
-      hintContainer.innerHTML = '<span style="font-size: 0.82rem; color: #94a3b8;">Multi-language audio & subtitles</span>';
+    if (origLang !== 'en') {
+      const origPill = createPill(`🌐 Original (${origLangLabel})`, 'orig', () => {
+        handleLangSwitch('orig', `🌐 Original (${origLangLabel})`);
+      });
+      container.appendChild(origPill);
     }
+
+    const esPill = createPill('🇪🇸 Spanish (Dubbed)', 'es', () => {
+      handleLangSwitch('es', '🇪🇸 Spanish');
+    });
+    container.appendChild(esPill);
   }
+
+  // Set initial hint pill display
+  updateHint(state.activeAudioLang);
 }
 
 // Helper: Fetch Top Rated Shows/Movies in matching Genre (Strict Anime Guarantee)
@@ -2836,10 +2859,22 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
   const streamSeason = isAnime ? 1 : (parseInt(season, 10) || 1);
   const streamEpisode = parseInt(episode, 10) || 1;
 
+  const lang = state.activeAudioLang || 'en';
+  let axonQuery = '';
+  if (lang === 'en') {
+    axonQuery = isAnime ? '?dub=1&audio=en' : '?audio=en';
+  } else if (lang === 'hi') {
+    axonQuery = '?audio=hi';
+  } else if (lang === 'ja') {
+    axonQuery = '?sub=1&audio=ja';
+  } else if (lang === 'es') {
+    axonQuery = '?audio=es';
+  }
+
   // Real content stream URL - guaranteed zero sample video fallback
   const streamUrl = isTv
-    ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/`
-    : `https://player.autoembed.co/embed/movie/${item.id}/`;
+    ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/${axonQuery}`
+    : `https://player.autoembed.co/embed/movie/${item.id}/${axonQuery}`;
 
   return {
     url: streamUrl,
@@ -2852,7 +2887,8 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
     isAnime: Boolean(isAnime),
     season: streamSeason,
     episode: streamEpisode,
-    startSeconds: startSeconds || 0
+    startSeconds: startSeconds || 0,
+    audioLang: lang
   };
 }
 
@@ -2874,6 +2910,14 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   let streamUrl = '';
   let badgeLabel = '';
+
+  const lang = state.activeAudioLang || 'en';
+  let langTag = '';
+  if (lang === 'en') langTag = ' • 🇺🇸 English Dub';
+  else if (lang === 'hi') langTag = ' • 🇮🇳 Hindi Dub';
+  else if (lang === 'ja') langTag = ' • 🇯🇵 Japanese Sub';
+  else if (lang === 'orig') langTag = ' • 🌐 Original Audio';
+  else if (lang === 'es') langTag = ' • 🇪🇸 Spanish Dub';
 
   // Clean up native player before mounting
   destroyNativePlayer();
@@ -2903,7 +2947,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // ---------------------------------------------------------------
     // 🎙️ Server 3: AXON Stream (English Dub & Sub HD)
     // ---------------------------------------------------------------
-    badgeLabel = `🎙️ Server 3 (AXON Stream) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'English Dub & Sub HD'}`;
+    badgeLabel = `🎙️ Server 3 (AXON Stream) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD Stream'}${langTag}`;
     if (badge) badge.textContent = badgeLabel;
 
     if (cinemaScreen) cinemaScreen.innerHTML = '';
@@ -2913,7 +2957,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
       if (art) {
         state.axonPlayerInstance = art;
       }
-      showToast('AXON Player: Stream Active (0 Ads)');
+      showToast(`AXON Player: Stream Active${langTag} (0 Ads)`);
     } catch (err) {
       console.error('[AXON Player]: Initialization error:', err);
       showToast(`AXON Player error: ${err.message || 'Failed to initialize'}`);
@@ -2945,10 +2989,20 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // ⚡ Server: VidLink 4K (Ultra HD & Full Audio)
     // ---------------------------------------------------------------
     const sNum = isAnime ? 2 : 1;
-    badgeLabel = `⚡ Server ${sNum} (VidLink 4K) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Ultra HD & Sound'}`;
+    badgeLabel = `⚡ Server ${sNum} (VidLink 4K) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Ultra HD & Sound'}${langTag}`;
     const paramsList = ['primaryColor=e50914'];
     if (startSeconds && startSeconds > 5) {
       paramsList.push(`startAt=${Math.floor(startSeconds)}`);
+    }
+    if (lang === 'en') {
+      if (isAnime) paramsList.push('dub=1', 'audio=en');
+      else paramsList.push('audio=en');
+    } else if (lang === 'hi') {
+      paramsList.push('audio=hi');
+    } else if (lang === 'ja') {
+      paramsList.push('audio=ja', 'sub=1');
+    } else if (lang === 'es') {
+      paramsList.push('audio=es');
     }
     const params = paramsList.join('&');
     streamUrl = isTv
@@ -2960,47 +3014,71 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // 🍥 Server: AutoEmbed (Sub/Dub HD & RabbitStream)
     // ---------------------------------------------------------------
     const sNum = isAnime ? 1 : 2;
-    badgeLabel = `🍥 Server ${sNum} (AutoEmbed Sub/Dub) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Sub/Dub HD'}`;
+    badgeLabel = `🍥 Server ${sNum} (AutoEmbed Sub/Dub) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Sub/Dub HD'}${langTag}`;
     const autoEmbedSeason = isAnime ? 1 : playSeason;
+    let autoEmbedQuery = '';
+    if (lang === 'en') {
+      autoEmbedQuery = isAnime ? '?dub=1&audio=en' : '?audio=en';
+    } else if (lang === 'hi') {
+      autoEmbedQuery = '?audio=hi';
+    } else if (lang === 'ja') {
+      autoEmbedQuery = '?sub=1&audio=ja';
+    } else if (lang === 'es') {
+      autoEmbedQuery = '?audio=es';
+    }
     streamUrl = isTv
-      ? `https://player.autoembed.co/embed/tv/${item.id}/${autoEmbedSeason}-${playEpisode}/`
-      : `https://player.autoembed.co/embed/movie/${item.id}/`;
+      ? `https://player.autoembed.co/embed/tv/${item.id}/${autoEmbedSeason}-${playEpisode}/${autoEmbedQuery}`
+      : `https://player.autoembed.co/embed/movie/${item.id}/${autoEmbedQuery}`;
 
   } else if (type === 'vidsrc') {
     // ---------------------------------------------------------------
     // 👑 Server 4: VidSrc PM (Multi-Mirror HD & Sound)
     // ---------------------------------------------------------------
-    badgeLabel = `👑 Server 4 (VidSrc PM) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Multi-Mirror HD'}`;
+    badgeLabel = `👑 Server 4 (VidSrc PM) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Multi-Mirror HD'}${langTag}`;
+    let vidsrcQuery = '';
+    if (lang === 'hi') vidsrcQuery = '?audio=hi&sub=hi';
+    else if (lang === 'en') vidsrcQuery = isAnime ? '?audio=en&dub=1' : '?audio=en';
+    else if (lang === 'ja') vidsrcQuery = '?audio=ja&sub=en';
+    else if (lang === 'es') vidsrcQuery = '?audio=es';
+
     streamUrl = isTv
-      ? `https://vidsrc.pm/embed/tv/${item.id}/${playSeason}/${playEpisode}`
-      : `https://vidsrc.pm/embed/movie/${item.id}`;
+      ? `https://vidsrc.pm/embed/tv/${item.id}/${playSeason}/${playEpisode}${vidsrcQuery}`
+      : `https://vidsrc.pm/embed/movie/${item.id}${vidsrcQuery}`;
 
   } else if (type === 'vidsrc_cc') {
     // ---------------------------------------------------------------
     // 📺 Server 5: VidSrc CC (Cloud 4K - Zero Sandbox Block)
     // ---------------------------------------------------------------
-    badgeLabel = `📺 Server 5 (VidSrc CC) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Cloud 4K'}`;
+    badgeLabel = `📺 Server 5 (VidSrc CC) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Cloud 4K'}${langTag}`;
+    let ccQuery = '';
+    if (lang === 'hi') ccQuery = '?audio=hi&sub=hi';
+    else if (lang === 'en') ccQuery = '?audio=en&sub=en';
+    else if (lang === 'ja') ccQuery = '?audio=ja&sub=en';
+    else if (lang === 'es') ccQuery = '?audio=es';
+
     streamUrl = isTv
-      ? `https://vidsrc.cc/v2/embed/tv/${item.id}/${playSeason}/${playEpisode}`
-      : `https://vidsrc.cc/v2/embed/movie/${item.id}`;
+      ? `https://vidsrc.cc/v2/embed/tv/${item.id}/${playSeason}/${playEpisode}${ccQuery}`
+      : `https://vidsrc.cc/v2/embed/movie/${item.id}${ccQuery}`;
 
   } else if (type === 'vidsrc_xyz') {
     // ---------------------------------------------------------------
     // 🌐 Server 6: VidSrc XYZ (Global Mirror)
     // ---------------------------------------------------------------
-    badgeLabel = `🌐 Server 6 (VidSrc XYZ) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Global Mirror'}`;
+    badgeLabel = `🌐 Server 6 (VidSrc XYZ) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Global Mirror'}${langTag}`;
+    let xyzLang = lang === 'hi' ? '&audio=hi' : (lang === 'en' ? '&audio=en' : (lang === 'ja' ? '&audio=ja' : ''));
     streamUrl = isTv
-      ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=${playSeason}&episode=${playEpisode}`
-      : `https://vidsrc.xyz/embed/movie?tmdb=${item.id}`;
+      ? `https://vidsrc.xyz/embed/tv?tmdb=${item.id}&season=${playSeason}&episode=${playEpisode}${xyzLang}`
+      : `https://vidsrc.xyz/embed/movie?tmdb=${item.id}${xyzLang ? '?' + xyzLang.slice(1) : ''}`;
 
   } else if (type === 'vidsrc_net') {
     // ---------------------------------------------------------------
     // ☁️ Server 7: VidSrc Net (Direct Stream)
     // ---------------------------------------------------------------
-    badgeLabel = `☁️ Server 7 (VidSrc Net) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Direct Stream'}`;
+    badgeLabel = `☁️ Server 7 (VidSrc Net) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Direct Stream'}${langTag}`;
+    let netLang = lang === 'hi' ? '?audio=hi' : (lang === 'en' ? '?audio=en' : (lang === 'ja' ? '?audio=ja' : ''));
     streamUrl = isTv
-      ? `https://vidsrc.net/embed/tv/${item.id}/${playSeason}/${playEpisode}`
-      : `https://vidsrc.net/embed/movie/${item.id}`;
+      ? `https://vidsrc.net/embed/tv/${item.id}/${playSeason}/${playEpisode}${netLang}`
+      : `https://vidsrc.net/embed/movie/${item.id}${netLang}`;
 
   } else if (type === 'trailer') {
     // ---------------------------------------------------------------
