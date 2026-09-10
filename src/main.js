@@ -1448,16 +1448,35 @@ searchInput.addEventListener('input', (e) => {
   searchDebounceTimer = setTimeout(async () => {
     const resolved = resolveSearchQuery(query);
     const searchQuery = resolved.query;
+    const trimmedQuery = query.trim();
 
-    const [movieData, tvData] = await Promise.all([
-      fetchTMDB('/search/movie', { query: searchQuery }),
-      fetchTMDB('/search/tv', { query: searchQuery })
-    ]);
+    let combined = [];
 
-    let combined = [
-      ...((movieData && movieData.results) || []),
-      ...((tvData && tvData.results) || []).map(t => ({ ...t, isTv: true }))
-    ];
+    // Direct lookup by IMDb ID (e.g. tt1375666)
+    if (/^tt\d+$/i.test(trimmedQuery)) {
+      try {
+        const findData = await fetchTMDB(`/find/${trimmedQuery}`, { external_source: 'imdb_id' });
+        if (findData) {
+          const foundMovies = (findData.movie_results || []).map(m => ({ ...m, imdb_id: trimmedQuery }));
+          const foundTv = (findData.tv_results || []).map(t => ({ ...t, isTv: true, imdb_id: trimmedQuery }));
+          combined = [...foundMovies, ...foundTv];
+        }
+      } catch (e) {
+        console.warn('IMDb ID direct lookup error:', e);
+      }
+    }
+
+    if (combined.length === 0) {
+      const [movieData, tvData] = await Promise.all([
+        fetchTMDB('/search/movie', { query: searchQuery }),
+        fetchTMDB('/search/tv', { query: searchQuery })
+      ]);
+
+      combined = [
+        ...((movieData && movieData.results) || []),
+        ...((tvData && tvData.results) || []).map(t => ({ ...t, isTv: true }))
+      ];
+    }
 
     // Also scan local catalog tracks for instant rich local hits
     const qLower = searchQuery.toLowerCase();
@@ -1569,6 +1588,20 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       append_to_response: 'videos,credits,similar,external_ids,translations',
     });
     if (details) details.isTv = true;
+  }
+
+  // Ensure IMDb ID is resolved for cross-server mirror indexing
+  if (details && !details.imdb_id && (!details.external_ids || !details.external_ids.imdb_id)) {
+    try {
+      const ext = await fetchTMDB(`/${isTv ? 'tv' : 'movie'}/${details.id}/external_ids`);
+      if (ext && ext.imdb_id) {
+        if (!details.external_ids) details.external_ids = {};
+        details.external_ids.imdb_id = ext.imdb_id;
+        details.imdb_id = ext.imdb_id;
+      }
+    } catch (e) {
+      console.warn('External IDs fallback fetch:', e);
+    }
   }
 
   if (!details) {
@@ -2144,18 +2177,20 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Jap/Eng Sound)</option>
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="2embed">📺 Server 4: 2Embed (Archive Mirror)</option>
-        <option value="smashy">☁️ Server 5: MegaCloud (SmashyStream)</option>
-        <option value="trailer">🎞️ Server 6: Official HD Trailer</option>
+        <option value="2embed">📺 Server 4: Embed.su (Cloud 4K Mirror)</option>
+        <option value="multiembed">🌐 Server 5: MultiEmbed (20+ Hosters & Mirrors)</option>
+        <option value="smashy">☁️ Server 6: MegaCloud (SmashyStream)</option>
+        <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
     } else {
       serverSelect.innerHTML = `
         <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Direct Sound)</option>
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
-        <option value="2embed">📺 Server 4: 2Embed (Archive Mirror)</option>
-        <option value="smashy">☁️ Server 5: MegaCloud (SmashyStream)</option>
-        <option value="trailer">🎞️ Server 6: Official HD Trailer</option>
+        <option value="2embed">📺 Server 4: Embed.su (Cloud 4K Mirror)</option>
+        <option value="multiembed">🌐 Server 5: MultiEmbed (20+ Hosters & Mirrors)</option>
+        <option value="smashy">☁️ Server 6: MegaCloud (SmashyStream)</option>
+        <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
     }
     serverSelect.value = state.activeSourceType;
@@ -2468,7 +2503,7 @@ async function renderGenreTopShows(details, isTv) {
 }
 
 // ==========================================================================
-// Stream Player Engine (5 Multi-CDN High-Speed Servers + Zero Ads)
+// Stream Player Engine (6 Multi-CDN High-Speed Servers + Zero Ads)
 // ==========================================================================
 async function mountVideoPlayer(item, type, season = 1, episode = 1, startSeconds = 0) {
   const cinemaScreen = document.getElementById('cinema-screen');
@@ -2480,6 +2515,8 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     (item.genre_ids && item.genre_ids.includes(16) && item.original_language === 'ja') ||
     (Array.isArray(item.origin_country) && item.origin_country.includes('JP') && item.genre_ids && item.genre_ids.includes(16))
   );
+
+  const imdbId = item.imdb_id || (item.external_ids && item.external_ids.imdb_id) || '';
 
   let streamUrl = '';
   let badgeLabel = '';
@@ -2530,11 +2567,21 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
       ? `https://embed.su/embed/tv/${item.id}/${season}/${episode}`
       : `https://embed.su/embed/movie/${item.id}`;
 
+  } else if (type === 'multiembed') {
+    // ---------------------------------------------------------------
+    // 🌐 Server 5: MultiEmbed (20+ Hosters & Scrapers Mega-Aggregator)
+    // ---------------------------------------------------------------
+    badgeLabel = `🌐 Server 5 (MultiEmbed 20+ Mirrors) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server 4K'}`;
+    const idToUse = imdbId || item.id;
+    streamUrl = isTv
+      ? `https://multiembed.mov/?video_id=${idToUse}&tmdb=1&s=${season}&e=${episode}`
+      : `https://multiembed.mov/?video_id=${idToUse}&tmdb=1`;
+
   } else if (type === 'smashy') {
     // ---------------------------------------------------------------
-    // ☁️ Server 5: SmashyStream (MegaCloud / UpCloud)
+    // ☁️ Server 6: SmashyStream (MegaCloud / UpCloud)
     // ---------------------------------------------------------------
-    badgeLabel = `☁️ Server 5 (MegaCloud) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server'}`;
+    badgeLabel = `☁️ Server 6 (MegaCloud) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server'}`;
     streamUrl = isTv
       ? `https://player.smashy.stream/tv/${item.id}?s=${season}&e=${episode}`
       : `https://player.smashy.stream/movie/${item.id}`;
@@ -2543,7 +2590,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // ---------------------------------------------------------------
     // 🎞️ Official HD Trailer
     // ---------------------------------------------------------------
-    badgeLabel = '🎞️ Official HD Trailer';
+    badgeLabel = '🎞️ Server 7: Official HD Trailer';
     const videos = item.videos ? item.videos.results : [];
     const trailer = videos.find(v => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
     if (trailer && trailer.key) {

@@ -6194,6 +6194,33 @@ body.cinema-focus-mode .btn-cinema-focus {
   border-color: rgba(229, 9, 20, 0.6) !important;
 }
 
+.player-server-helper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 1rem;
+  background: rgba(14, 18, 27, 0.85);
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.player-server-helper strong {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .player-server-helper {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+
 
 
 
