@@ -516,6 +516,7 @@ function startApp() {
   try { setupAuthSystem(); } catch (e) { console.error('setupAuthSystem error:', e); }
   try { setupProfileSettingsSystem(); } catch (e) { console.error('setupProfileSettingsSystem error:', e); }
   try { setupAudioGuideModal(); } catch (e) { console.error('setupAudioGuideModal error:', e); }
+  try { initSmartAdShield(); } catch (e) { console.error('initSmartAdShield error:', e); }
   try { updateWatchlistBadge(); } catch (e) { console.error('updateWatchlistBadge error:', e); }
   try { updateUserUI(); } catch (e) { console.error('updateUserUI error:', e); }
   try { renderHistoryRow(); } catch (e) { console.error('renderHistoryRow error:', e); }
@@ -2468,6 +2469,25 @@ async function renderGenreTopShows(details, isTv) {
 }
 
 // ==========================================================================
+// Built-in Smart Ad & Popup Protection Shield (Zero Extensions Needed)
+// ==========================================================================
+function initSmartAdShield() {
+  window._allowNextPopup = false;
+  const originalWindowOpen = window.open;
+
+  // Intercept unauthorized rogue popups/popunders spawned by embed clicks
+  window.open = function (url, target, features) {
+    if (window._allowNextPopup) {
+      window._allowNextPopup = false;
+      return originalWindowOpen.call(window, url, target, features);
+    }
+    console.warn('[AXON Ad-Shield] Blocked unauthorized rogue popup/tab redirect to:', url);
+    showToast('🛡️ AXON Ad-Shield: Pop-up / ad tab blocked!');
+    return null;
+  };
+}
+
+// ==========================================================================
 // Stream Player Engine (5 Multi-CDN High-Speed Servers + Zero Ads)
 // ==========================================================================
 async function mountVideoPlayer(item, type, season = 1, episode = 1, startSeconds = 0) {
@@ -2585,6 +2605,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
   if (popoutBtn) {
     popoutBtn.onclick = () => {
       if (state.currentStreamUrl) {
+        window._allowNextPopup = true;
         window.open(state.currentStreamUrl, '_blank', 'noopener');
         showToast('↗ Stream opened in new tab with full sound');
       }
@@ -2598,6 +2619,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
         src="${streamUrl}" 
         title="${item.title || item.name}" 
         style="width: 100%; height: 100%; border: none;"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" 
         allowfullscreen="true" 
         webkitallowfullscreen="true" 
