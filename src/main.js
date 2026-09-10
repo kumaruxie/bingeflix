@@ -2178,7 +2178,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
         <option value="2embed">📺 Server 4: Embed.su (Cloud 4K Mirror)</option>
-        <option value="multiembed">🌐 Server 5: MultiEmbed (20+ Hosters & Mirrors)</option>
+        <option value="multiembed">🌐 Server 5: Mega-Aggregator (15+ Hosters: StreamWish, UpCloud, MixDrop, VidCloud, FileLions)</option>
         <option value="smashy">☁️ Server 6: MegaCloud (SmashyStream)</option>
         <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
@@ -2188,7 +2188,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         <option value="vidsrc">👑 Server 2: VidSrc PM (Multi-Mirror HD)</option>
         <option value="autoembed">🍥 Server 3: AutoEmbed (Sub/Dub HD)</option>
         <option value="2embed">📺 Server 4: Embed.su (Cloud 4K Mirror)</option>
-        <option value="multiembed">🌐 Server 5: MultiEmbed (20+ Hosters & Mirrors)</option>
+        <option value="multiembed">🌐 Server 5: Mega-Aggregator (15+ Hosters: StreamWish, UpCloud, MixDrop, VidCloud, FileLions)</option>
         <option value="smashy">☁️ Server 6: MegaCloud (SmashyStream)</option>
         <option value="trailer">🎞️ Server 7: Official HD Trailer</option>
       `;
@@ -2201,6 +2201,18 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       mountVideoPlayer(details, chosen, state.currentSeason || 1, state.currentEpisode || 1, playSec);
       const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : chosen;
       showToast(`Connected to ${label}`);
+    };
+  }
+
+  // 1-Click Mega-Aggregator Quick Switch Button
+  const megaAggregatorBtn = document.getElementById('btn-mega-aggregator');
+  if (megaAggregatorBtn) {
+    megaAggregatorBtn.onclick = () => {
+      state.activeSourceType = 'multiembed';
+      if (serverSelect) serverSelect.value = 'multiembed';
+      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+      mountVideoPlayer(details, 'multiembed', state.currentSeason || 1, state.currentEpisode || 1, playSec);
+      showToast('🌐 Switched to Mega-Aggregator (Scanning 20+ Global Hosters)');
     };
   }
 
@@ -2569,13 +2581,15 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   } else if (type === 'multiembed') {
     // ---------------------------------------------------------------
-    // 🌐 Server 5: MultiEmbed (20+ Hosters & Scrapers Mega-Aggregator)
+    // 🌐 Server 5: Mega-Aggregator (20+ Global Hosters & Scrapers in 1)
     // ---------------------------------------------------------------
-    badgeLabel = `🌐 Server 5 (MultiEmbed 20+ Mirrors) • ${isTv ? `S${season} : E${episode}` : 'Multi-Server 4K'}`;
+    badgeLabel = `🌐 Mega-Aggregator (20+ Hosters) • ${isTv ? `S${season} : E${episode}` : 'Global Mirrors'}`;
     const idToUse = imdbId || item.id;
+    const isTmdb = !String(idToUse).startsWith('tt');
+    const tmdbFlag = isTmdb ? '&tmdb=1' : '';
     streamUrl = isTv
-      ? `https://multiembed.mov/?video_id=${idToUse}&tmdb=1&s=${season}&e=${episode}`
-      : `https://multiembed.mov/?video_id=${idToUse}&tmdb=1`;
+      ? `https://multiembed.mov/?video_id=${idToUse}${tmdbFlag}&s=${season}&e=${episode}`
+      : `https://multiembed.mov/?video_id=${idToUse}${tmdbFlag}`;
 
   } else if (type === 'smashy') {
     // ---------------------------------------------------------------

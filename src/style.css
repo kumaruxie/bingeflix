@@ -6220,6 +6220,31 @@ body.cinema-focus-mode .btn-cinema-focus {
   }
 }
 
+.btn-mega-aggregator {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(168, 85, 247, 0.22)) !important;
+  border: 1px solid rgba(56, 189, 248, 0.45) !important;
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
+  font-size: 0.76rem !important;
+  padding: 0.35rem 0.75rem !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
+}
+
+.btn-mega-aggregator:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.35), rgba(168, 85, 247, 0.35)) !important;
+  border-color: #38bdf8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+
 
 
 
