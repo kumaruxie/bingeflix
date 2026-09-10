@@ -1366,6 +1366,51 @@ body {
   transform: translateY(0);
 }
 
+/* Dedicated AXON Server Native Player Button */
+.source-right .btn-axon-server {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 38px;
+  padding: 0 1.25rem;
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  font-weight: 800;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 60, 80, 0.7);
+  background: linear-gradient(135deg, #e50914 0%, #ff2a3f 100%);
+  color: #ffffff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+  user-select: none;
+  box-sizing: border-box;
+  box-shadow: 0 4px 18px rgba(229, 9, 20, 0.5);
+}
+
+.source-right .btn-axon-server:hover {
+  transform: translateY(-2px) scale(1.02);
+  background: linear-gradient(135deg, #ff1a2b 0%, #ff4759 100%);
+  border-color: #ffffff;
+  box-shadow: 0 6px 24px rgba(229, 9, 20, 0.8);
+}
+
+.source-right .btn-axon-server:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.source-right .btn-axon-server .axon-sparkle {
+  font-size: 1rem;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+  animation: pulse-sparkle 2s infinite ease-in-out;
+}
+
+@keyframes pulse-sparkle {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.25); opacity: 1; filter: drop-shadow(0 0 10px #fff); }
+}
+
 /* Helper Banner for Audio & Multi-Language Switching */
 .player-helper-banner {
   display: flex;
@@ -5739,6 +5784,8 @@ body {
   .source-right .btn-next-ep-player,
   .source-right .btn-prev-ep-player,
   .source-right .btn-cinema-focus,
+  .source-right .btn-axon-server,
+  #btn-axon-server,
   #player-watchlist-btn,
   #player-external-btn,
   #player-theater-btn {

@@ -1,3 +1,11 @@
+import Artplayer from 'artplayer';
+import Hls from 'hls.js';
+
+if (typeof window !== 'undefined') {
+  window.Artplayer = Artplayer;
+  window.Hls = Hls;
+}
+
 // ==========================================================================
 // AXON OTT - Native Multi-Track HTML5 Video Player (ArtPlayer + HLS Engine)
 // Features:
