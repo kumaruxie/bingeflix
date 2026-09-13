@@ -61,6 +61,7 @@ import {
 
 const TMDB_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) || 'df1c541385e699bbed7ffd32934162da';
 const TMDB_BASE_URL = 'https://api.tmdb.org/3';
+const TMDB_FALLBACK_URL = 'https://api.themoviedb.org/3';
 const IMG_BASE_URL = 'https://image.tmdb.org/t/p';
 const TMDB_IMG_URL = IMG_BASE_URL;
 
@@ -1562,22 +1563,15 @@ function arrangeImdbEpisodes(rawVideos) {
   if (!Array.isArray(rawVideos) || rawVideos.length === 0) return null;
   const seasonsMap = {};
 
-  const s1Videos = rawVideos.filter(v => (v.season === 1 || !v.season));
-  const startsWithZero = s1Videos.length > 0 && s1Videos[0].number === 0;
-
   rawVideos.forEach((v) => {
-    const sNum = (typeof v.season === 'number' && v.season > 0) ? v.season : 1;
+    // Keep season 0 as Specials! Never merge specials into Season 1
+    const sNum = (typeof v.season === 'number') ? v.season : 1;
     if (!seasonsMap[sNum]) seasonsMap[sNum] = [];
 
     const countInSeason = seasonsMap[sNum].length;
-    let epNum;
-    if (startsWithZero && sNum === 1) {
-      epNum = (typeof v.number === 'number') ? (v.number + 1) : (countInSeason + 1);
-    } else if (typeof v.number === 'number' && v.number > 0) {
-      epNum = v.number;
-    } else {
-      epNum = countInSeason + 1;
-    }
+    let epNum = (typeof v.number === 'number')
+      ? (v.number === 0 ? countInSeason + 1 : v.number)
+      : (typeof v.episode === 'number' ? v.episode : (countInSeason + 1));
 
     const isGeneric = !v.name || /^Episode #\d+\.\d+$/i.test(v.name);
     const epTitle = isGeneric ? `Episode ${epNum}` : v.name;
@@ -1594,6 +1588,11 @@ function arrangeImdbEpisodes(rawVideos) {
       still_path: v.thumbnail || null,
       imdb_id: v.imdb_id || v.id
     });
+  });
+
+  // Sort episodes in each season by episode_number ascending
+  Object.keys(seasonsMap).forEach((sn) => {
+    seasonsMap[sn].sort((a, b) => a.episode_number - b.episode_number);
   });
 
   return seasonsMap;
@@ -2061,11 +2060,12 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     const nextEpObj = currentIdx !== -1 && currentSeasonEpisodes[currentIdx + 1] ? currentSeasonEpisodes[currentIdx + 1] : null;
 
     if (nextEpObj) {
+      state.activeEpisodeObj = nextEpObj;
       state.currentEpisode = nextEpObj.relative_number || nextEpObj.episode_number;
       episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
       window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
       const playSeason = nextEpObj.season_number || state.currentSeason;
-      mountVideoPlayer(details, state.activeSourceType, playSeason, nextEpObj.episode_number);
+      mountVideoPlayer(details, state.activeSourceType, playSeason, state.currentEpisode);
       syncBatchTabForCurrentEpisode();
       renderCurrentEpisodesOrientation();
       updateNextEpButtonState();
@@ -2087,11 +2087,12 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     const prevEpObj = currentIdx > 0 ? currentSeasonEpisodes[currentIdx - 1] : null;
 
     if (prevEpObj) {
+      state.activeEpisodeObj = prevEpObj;
       state.currentEpisode = prevEpObj.relative_number || prevEpObj.episode_number;
       episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
       window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
       const playSeason = prevEpObj.season_number || state.currentSeason;
-      mountVideoPlayer(details, state.activeSourceType, playSeason, prevEpObj.episode_number);
+      mountVideoPlayer(details, state.activeSourceType, playSeason, state.currentEpisode);
       syncBatchTabForCurrentEpisode();
       renderCurrentEpisodesOrientation();
       updateNextEpButtonState();
@@ -2262,11 +2263,12 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
         card.addEventListener('click', () => {
           document.querySelectorAll('.episode-card-list, .episode-card-grid').forEach(c => c.classList.remove('active'));
           card.classList.add('active');
+          state.activeEpisodeObj = ep;
           state.currentEpisode = epDisplayNum;
           episodeBadge.textContent = `S${state.currentSeason} : E${state.currentEpisode}`;
           window.location.hash = `watch/tv/${details.id}?s=${state.currentSeason}&e=${state.currentEpisode}`;
           const playSeason = ep.season_number || state.currentSeason;
-          mountVideoPlayer(details, state.activeSourceType, playSeason, ep.episode_number);
+          mountVideoPlayer(details, state.activeSourceType, playSeason, epDisplayNum);
           renderCurrentEpisodesOrientation();
           updateNextEpButtonState();
           showToast(`Playing S${state.currentSeason} : E${state.currentEpisode} - ${ep.name}`);
@@ -2288,11 +2290,29 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     const validSeasons = (details.seasons || []).filter(s => s.season_number > 0);
     let seasonsList = validSeasons.length > 0 ? [...validSeasons] : [];
 
-    // Integrate IMDb arranged episode counts into season breakdown
-    if (imdbEpisodesMap) {
-      const imdbSeasonKeys = Object.keys(imdbEpisodesMap).map(k => parseInt(k, 10)).sort((a, b) => a - b);
+    // Identify real-world seasons from IMDb (excluding Season 0 specials)
+    const validImdbKeys = imdbEpisodesMap
+      ? Object.keys(imdbEpisodesMap).map(k => parseInt(k, 10)).filter(k => k > 0).sort((a, b) => a - b)
+      : [];
+
+    // Detect if TMDB lumped multiple real-world cours/seasons into a single Season 1
+    // (e.g. Hell's Paradise S1 has 25 eps on TMDB, but Wikipedia/IMDb has S1 = 13, S2 = 12)
+    const isLumpedSingleSeason = (
+      validImdbKeys.length > 1 &&
+      validSeasons.length === 1 &&
+      (validSeasons[0].episode_count || 0) >= 20
+    );
+
+    if (isLumpedSingleSeason) {
+      // Decompose into the true real-world seasons following Internet standard (Wikipedia / Crunchyroll / IMDb)
+      seasonsList = validImdbKeys.map(sn => ({
+        season_number: sn,
+        name: `Season ${sn}`,
+        episode_count: imdbEpisodesMap[sn].length
+      }));
+    } else if (imdbEpisodesMap) {
       if (seasonsList.length === 0) {
-        seasonsList = imdbSeasonKeys.map(sn => ({
+        seasonsList = validImdbKeys.map(sn => ({
           season_number: sn,
           name: `Season ${sn}`,
           episode_count: imdbEpisodesMap[sn].length
@@ -2309,7 +2329,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
           return s;
         });
 
-        imdbSeasonKeys.forEach(sn => {
+        validImdbKeys.forEach(sn => {
           if (!seasonsList.some(s => s.season_number === sn)) {
             seasonsList.push({
               season_number: sn,
@@ -2334,13 +2354,16 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     });
 
     // Smart Season Auto-Detection:
-    // If targetEpisode belongs to a later season (e.g. Naruto Shippuden Ep 163 is in Season 8, not Season 1)
-    let resolvedSeason = targetSeason || seasonsList[0].season_number;
-    if (targetEpisode && targetEpisode > 1) {
+    let resolvedSeason = (targetSeason !== undefined && seasonsList.some(s => s.season_number === targetSeason))
+      ? targetSeason
+      : seasonsList[0].season_number;
+
+    if (targetEpisode && targetEpisode > 1 && !seasonsList.some(s => s.season_number === targetSeason)) {
       const targetSObj = seasonsList.find(s => s.season_number === targetSeason);
       if (!targetSObj || (targetSObj.episode_count && targetEpisode > targetSObj.episode_count && targetEpisode > 30)) {
         let cumulative = 0;
         for (const s of seasonsList) {
+          if (s.season_number === 0) continue;
           const count = s.episode_count || 0;
           if (targetEpisode <= cumulative + count) {
             resolvedSeason = s.season_number;
@@ -2359,60 +2382,107 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     async function loadRegularSeasonEpisodes(seasonNum) {
       episodesTrack.innerHTML = '<div style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Loading season episodes...</div>';
       const showId = details.id || id;
-      let sData = await fetchTMDB(`/tv/${showId}/season/${seasonNum}`);
+      let sData = null;
 
-      if (!sData && details.seasons && details.seasons.length > 0) {
-        for (const s of details.seasons) {
-          if (s.season_number !== seasonNum && s.episode_count > 0) {
-            const altData = await fetchTMDB(`/tv/${showId}/season/${s.season_number}`);
-            if (altData && altData.episodes && altData.episodes.length > 0) {
-              sData = altData;
-              state.currentSeason = s.season_number;
-              seasonSelect.value = s.season_number;
-              break;
-            }
+      try {
+        sData = await fetchTMDB(`/tv/${showId}/season/${seasonNum}`);
+      } catch (e) {
+        sData = null;
+      }
+
+      let tmdbEps = (sData && Array.isArray(sData.episodes)) ? [...sData.episodes] : [];
+
+      // Multi-Cour Intelligent Slicing:
+      // If TMDB lumped all episodes into Season 1 and returned 404 for Season 2+ (or season 1 is bloated):
+      if (isLumpedSingleSeason && seasonNum > 0) {
+        let s1Data = (seasonNum === 1 && sData) ? sData : await fetchTMDB(`/tv/${showId}/season/1`);
+        if (s1Data && Array.isArray(s1Data.episodes) && s1Data.episodes.length > 0) {
+          let offset = 0;
+          for (let sn = 1; sn < seasonNum; sn++) {
+            offset += (imdbEpisodesMap && imdbEpisodesMap[sn]) ? imdbEpisodesMap[sn].length : 0;
+          }
+          const seasonCount = (imdbEpisodesMap && imdbEpisodesMap[seasonNum])
+            ? imdbEpisodesMap[seasonNum].length
+            : (s1Data.episodes.length - offset);
+
+          if (offset < s1Data.episodes.length) {
+            const sliced = s1Data.episodes.slice(offset, offset + seasonCount);
+            tmdbEps = sliced.map((ep, idx) => ({
+              ...ep,
+              id: ep.id || `decomposed_${seasonNum}_${idx + 1}`,
+              episode_number: idx + 1,
+              relative_number: idx + 1,
+              season_number: seasonNum,
+              tmdb_season: 1,
+              tmdb_episode: ep.episode_number,
+              absolute_number: ep.episode_number
+            }));
           }
         }
       }
 
-      const tmdbEps = (sData && sData.episodes) || [];
       const imdbSeasonEps = imdbEpisodesMap && imdbEpisodesMap[seasonNum];
       let finalEpisodes = [];
 
-      // Use IMDb arranged episodes if IMDb has more comprehensive episode data (e.g. 500 vs 10)
-      if (imdbSeasonEps && imdbSeasonEps.length > tmdbEps.length) {
-        finalEpisodes = imdbSeasonEps.map(imdbEp => {
-          const tmdbMatch = tmdbEps.find(te => te.episode_number === imdbEp.episode_number);
+      if (tmdbEps.length > 0 && imdbSeasonEps && imdbSeasonEps.length > 0) {
+        // Blend TMDB rich metadata (synopsis, stills, rating, air_date) with IMDb arranged titles
+        finalEpisodes = imdbSeasonEps.map((imdbEp, idx) => {
+          const tmdbMatch = tmdbEps.find(te => te.episode_number === imdbEp.episode_number || te.relative_number === imdbEp.episode_number) || tmdbEps[idx];
           if (tmdbMatch) {
             return {
               ...imdbEp,
-              name: tmdbMatch.name && !/^Episode \d+$/i.test(tmdbMatch.name) ? tmdbMatch.name : imdbEp.name,
+              ...tmdbMatch,
+              name: (tmdbMatch.name && !/^Episode #?\d+(\.\d+)?$/i.test(tmdbMatch.name)) ? tmdbMatch.name : imdbEp.name,
               overview: tmdbMatch.overview || imdbEp.overview,
               still_path: tmdbMatch.still_path || imdbEp.still_path,
               air_date: tmdbMatch.air_date || imdbEp.air_date,
-              vote_average: tmdbMatch.vote_average || imdbEp.vote_average
+              vote_average: tmdbMatch.vote_average || imdbEp.vote_average,
+              relative_number: imdbEp.episode_number,
+              episode_number: imdbEp.episode_number,
+              season_number: seasonNum,
+              tmdb_season: tmdbMatch.tmdb_season || seasonNum,
+              tmdb_episode: tmdbMatch.tmdb_episode || imdbEp.episode_number,
+              absolute_number: tmdbMatch.absolute_number || imdbEp.episode_number
             };
           }
-          return imdbEp;
+          return {
+            ...imdbEp,
+            relative_number: imdbEp.episode_number,
+            season_number: seasonNum
+          };
         });
       } else if (tmdbEps.length > 0) {
-        finalEpisodes = tmdbEps;
+        finalEpisodes = tmdbEps.map((ep, idx) => ({
+          ...ep,
+          relative_number: ep.relative_number || ep.episode_number || (idx + 1),
+          episode_number: ep.relative_number || ep.episode_number || (idx + 1),
+          season_number: seasonNum,
+          tmdb_season: ep.tmdb_season || seasonNum,
+          tmdb_episode: ep.tmdb_episode || ep.episode_number,
+          absolute_number: ep.absolute_number || ep.episode_number
+        }));
       } else if (imdbSeasonEps && imdbSeasonEps.length > 0) {
-        finalEpisodes = imdbSeasonEps;
+        finalEpisodes = imdbSeasonEps.map(ep => ({
+          ...ep,
+          relative_number: ep.episode_number,
+          season_number: seasonNum
+        }));
       }
 
       if (finalEpisodes.length > 0) {
         currentSeasonEpisodes = finalEpisodes;
+        state.activeEpisodeObj = currentSeasonEpisodes.find(e => e.relative_number === state.currentEpisode || e.episode_number === state.currentEpisode) || currentSeasonEpisodes[0];
 
         if (seasonMetaBadge) {
           const yearStr = (sData && sData.air_date) ? sData.air_date.split('-')[0] : (finalEpisodes[0].air_date ? finalEpisodes[0].air_date.split('-')[0] : '');
-          seasonMetaBadge.textContent = `Season ${state.currentSeason} • ${currentSeasonEpisodes.length} Episodes ${yearStr ? `• ${yearStr}` : ''}`;
+          const label = `Season ${seasonNum}`;
+          seasonMetaBadge.textContent = `${label} • ${currentSeasonEpisodes.length} Episodes ${yearStr ? `• ${yearStr}` : ''}`;
         }
 
         if (seasonDesc) {
           const descText = (sData && sData.overview) || details.overview || '';
           if (descText) {
-            seasonDesc.innerHTML = `<strong>Season ${state.currentSeason} Storyline:</strong> ${descText}`;
+            seasonDesc.innerHTML = `<strong>Season ${seasonNum} Storyline:</strong> ${descText}`;
             seasonDesc.style.display = 'block';
           } else {
             seasonDesc.style.display = 'none';
@@ -2425,7 +2495,7 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
       } else {
         episodesTrack.innerHTML = `
           <div style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
-            <p style="margin-bottom: 0.8rem; font-size: 0.95rem;">Stream episodes directly on Server 1 or 2:</p>
+            <p style="margin-bottom: 0.8rem; font-size: 0.95rem;">Stream episode directly:</p>
             <button type="button" class="btn-cta btn-play" id="btn-stream-direct-ep">
               ▶ Stream Episode ${state.currentEpisode || 1}
             </button>
@@ -2865,7 +2935,7 @@ async function renderGenreTopShows(details, isTv) {
 // ==========================================================================
 // AXON Server: Native Stream Resolver (Anime & Movies Direct HLS)
 // ==========================================================================
-function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSeconds = 0) {
+function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSeconds = 0, absoluteEpisode = null) {
   const isAnime = Boolean(
     item.isAnime ||
     (item.original_language === 'ja' && item.genres && item.genres.some(g => g.id === 16 || g.name === 'Animation')) ||
@@ -2876,16 +2946,16 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
   const title = item.title || item.name || 'AXON Stream';
   const poster = item.backdrop_path ? `${TMDB_IMG_URL}/w1280${item.backdrop_path}` : (item.poster_path ? `${TMDB_IMG_URL}/w500${item.poster_path}` : '');
   
-  // For Anime, AutoEmbed maps sequential episodes (e.g. Naruto Shippūden Ep 163) under Season 1:
-  const streamSeason = isAnime ? 1 : (parseInt(season, 10) || 1);
+  const streamSeason = parseInt(season, 10) || 1;
   const streamEpisode = parseInt(episode, 10) || 1;
+  const animeEp = absoluteEpisode ? parseInt(absoluteEpisode, 10) : streamEpisode;
 
   const lang = state.activeAudioLang || 'en';
   const subOrDub = lang === 'en' ? 'dub' : 'sub';
 
   // Real content stream URL - guaranteed zero sample video fallback
   const streamUrl = isAnime
-    ? `https://player.autoembed.co/embed/anime/${item.id}/${streamEpisode}/${subOrDub}`
+    ? `https://player.autoembed.co/embed/anime/${item.id}/${animeEp}/${subOrDub}`
     : (isTv
       ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/`
       : `https://player.autoembed.co/embed/movie/${item.id}/`);
@@ -2901,6 +2971,7 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
     isAnime: Boolean(isAnime),
     season: streamSeason,
     episode: streamEpisode,
+    absoluteEpisode: animeEp,
     startSeconds: startSeconds || 0,
     audioLang: lang
   };
@@ -2939,6 +3010,14 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
   let playSeason = parseInt(season, 10) || 1;
   let playEpisode = parseInt(episode, 10) || 1;
 
+  const activeEp = state.activeEpisodeObj;
+  const isMatchingEp = activeEp && (
+    activeEp.relative_number === playEpisode ||
+    activeEp.episode_number === playEpisode ||
+    activeEp.tmdb_episode === playEpisode
+  );
+  const effectiveAbsoluteEp = (isMatchingEp && activeEp.absolute_number) ? activeEp.absolute_number : playEpisode;
+
   // Auto-correct season for anime / long series if episode number is out of bounds for the given season
   // (e.g. Naruto Shippuden Ep 163 is in Season 8, not Season 1)
   if (isTv && item.seasons && item.seasons.length > 0 && playEpisode > 30) {
@@ -2966,7 +3045,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
     if (cinemaScreen) cinemaScreen.innerHTML = '';
     try {
-      const streamConfig = resolveAxonNativeStream(item, isTv, playSeason, playEpisode, startSeconds);
+      const streamConfig = resolveAxonNativeStream(item, isTv, playSeason, playEpisode, startSeconds, effectiveAbsoluteEp);
       const art = initNativePlayer(cinemaScreen, streamConfig);
       if (art) {
         state.axonPlayerInstance = art;
@@ -3032,7 +3111,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     badgeLabel = `🍥 Server ${sNum} (AutoEmbed ${lang === 'en' ? 'English Dub' : 'Japanese Sub'}) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD'}${langTag}`;
 
     if (isAnime) {
-      streamUrl = `https://player.autoembed.co/embed/anime/${item.id}/${playEpisode}/${subOrDub}`;
+      streamUrl = `https://player.autoembed.co/embed/anime/${item.id}/${effectiveAbsoluteEp}/${subOrDub}`;
     } else {
       let autoEmbedQuery = '';
       if (lang === 'hi') autoEmbedQuery = '?audio=hi';

@@ -52,8 +52,8 @@ export function initNativePlayer(container, streamConfig = {}) {
   // Resolve stream URL for the real movie / anime episode (NEVER a sample video)
   let activeUrl = streamUrl || url;
   if (!activeUrl && tmdbId) {
-    const sNum = isAnime ? 1 : (parseInt(season, 10) || 1);
-    const epNum = parseInt(episode, 10) || 1;
+    const sNum = parseInt(season, 10) || 1;
+    const epNum = parseInt(streamConfig.absoluteEpisode || episode, 10) || 1;
     const subOrDub = audioLang === 'en' ? 'dub' : 'sub';
 
     activeUrl = isAnime
