@@ -779,3 +779,113 @@ export function clearAllAuthSessions() {
     }
   }
 }
+
+// ==========================================================================
+// Stream Logs & Real-Time Proof Analytics Module
+// ==========================================================================
+
+export function getOrGenerateVisitorId() {
+  try {
+    let visitorId = localStorage.getItem('bingeflix_visitor_id');
+    if (!visitorId) {
+      visitorId = 'Visitor_#' + Math.random().toString(36).substring(2, 6).toUpperCase();
+      localStorage.setItem('bingeflix_visitor_id', visitorId);
+    }
+    return visitorId;
+  } catch {
+    return 'Visitor_#ANON';
+  }
+}
+
+export async function logStreamStart({ mediaId, title, mediaType = 'movie', season = 1, episode = 1, serverName = 'Server 1', currentUser = null }) {
+  if (!isSupabaseConfigured || !mediaId) return null;
+
+  try {
+    const isGuest = !currentUser || !currentUser.id;
+    const userIdentifier = isGuest
+      ? getOrGenerateVisitorId()
+      : (currentUser.username || currentUser.name || currentUser.email || 'Registered User');
+
+    const cleanTitle = (title || 'Untitled').trim();
+
+    const { data, error } = await supabase
+      .from('stream_logs')
+      .insert({
+        media_id: String(mediaId),
+        media_title: cleanTitle,
+        media_type: mediaType || 'movie',
+        season: Number(season || 1),
+        episode: Number(episode || 1),
+        server_name: serverName || 'Server 1',
+        user_identifier: userIdentifier,
+        is_guest: isGuest,
+        watch_duration_seconds: 0
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.warn('[Supabase StreamLog] Insert notice:', error.message);
+      return null;
+    }
+
+    return data ? data.id : null;
+  } catch (err) {
+    console.warn('[Supabase StreamLog] Start error:', err);
+    return null;
+  }
+}
+
+export async function logStreamHeartbeat(logId, durationSeconds) {
+  if (!isSupabaseConfigured || !logId) return;
+
+  try {
+    await supabase
+      .from('stream_logs')
+      .update({
+        watch_duration_seconds: Math.round(durationSeconds || 0),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', logId);
+  } catch (err) {
+    // Silent background fail
+  }
+}
+
+export async function fetchStreamAnalytics(limit = 60) {
+  if (!isSupabaseConfigured) {
+    return {
+      totalStreams: 0,
+      uniqueViewers: 0,
+      totalWatchSeconds: 0,
+      recentLogs: []
+    };
+  }
+
+  try {
+    const { data, count, error } = await supabase
+      .from('stream_logs')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.warn('[Supabase StreamLog] Fetch notice:', error.message);
+      return { totalStreams: 0, uniqueViewers: 0, totalWatchSeconds: 0, recentLogs: [] };
+    }
+
+    const logs = Array.isArray(data) ? data : [];
+    const uniqueViewersSet = new Set(logs.map(l => l.user_identifier));
+    const totalWatchSeconds = logs.reduce((acc, curr) => acc + (Number(curr.watch_duration_seconds) || 0), 0);
+
+    return {
+      totalStreams: count !== null ? count : logs.length,
+      uniqueViewers: uniqueViewersSet.size,
+      totalWatchSeconds: totalWatchSeconds,
+      recentLogs: logs
+    };
+  } catch (err) {
+    console.warn('[Supabase StreamLog] Fetch analytics error:', err);
+    return { totalStreams: 0, uniqueViewers: 0, totalWatchSeconds: 0, recentLogs: [] };
+  }
+}

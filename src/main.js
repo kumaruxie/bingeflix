@@ -56,7 +56,10 @@ import {
   updateUserPassword,
   checkUsernameAvailability,
   checkEmailAvailability,
-  clearAllAuthSessions
+  clearAllAuthSessions,
+  logStreamStart,
+  logStreamHeartbeat,
+  fetchStreamAnalytics
 } from './supabase.js';
 
 const TMDB_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_TMDB_API_KEY) || 'df1c541385e699bbed7ffd32934162da';
@@ -625,16 +628,25 @@ function startApp() {
 
     // Advance playback progress if player view is actively open
     state.activePlayback.currentTime = (state.activePlayback.currentTime || 0) + 3;
+    state.activePlayback.loggedDuration = (state.activePlayback.loggedDuration || 0) + 3;
     if (!state.activePlayback.duration) {
       state.activePlayback.duration = state.activePlayback.isTv ? 1440 : 6000;
     }
     savePlaybackProgress(state.activePlayback);
+
+    // Sync stream duration heartbeat to Supabase proof table every 15s
+    if (state.activePlayback.streamLogId && (state.activePlayback.loggedDuration % 15 === 0)) {
+      logStreamHeartbeat(state.activePlayback.streamLogId, state.activePlayback.loggedDuration);
+    }
   }, 3000);
 
   // Flush progress before tab closes / reloads
   window.addEventListener('beforeunload', () => {
     if (state.activePlayback) {
       savePlaybackProgress(state.activePlayback, true);
+      if (state.activePlayback.streamLogId && state.activePlayback.loggedDuration > 0) {
+        logStreamHeartbeat(state.activePlayback.streamLogId, state.activePlayback.loggedDuration);
+      }
     }
   });
 }
@@ -2964,6 +2976,9 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
 // Stream Player Engine (6 Multi-CDN High-Speed Servers + Zero Ads)
 // ==========================================================================
 async function mountVideoPlayer(item, type, season = 1, episode = 1, startSeconds = 0) {
+  if (state.activePlayback?.streamLogId && state.activePlayback?.loggedDuration > 0) {
+    logStreamHeartbeat(state.activePlayback.streamLogId, state.activePlayback.loggedDuration);
+  }
   const cinemaScreen = document.getElementById('cinema-screen');
   const badge = document.getElementById('player-view-badge');
   const isTv = Boolean(item.isTv || item.first_air_date || (item.seasons && item.seasons.length > 0));
@@ -3208,8 +3223,32 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     episode: parseInt(episode, 10) || 1,
     currentTime: startSeconds || 0,
     duration: 0,
-    lastSavedAt: Date.now()
+    lastSavedAt: Date.now(),
+    loggedDuration: 0,
+    streamLogId: null
   };
+
+  // Record Stream Event to Supabase for undeniable viewer proof
+  (async () => {
+    try {
+      const serverLabel = type === 'autoembed' ? 'Server 1: AutoEmbed' : (type === 'vidlink' ? 'Server 2: VidLink' : (type === 'axon' ? 'Native HLS Engine' : (type || 'Server 1')));
+      const logId = await logStreamStart({
+        mediaId: item.id,
+        title: item.title || item.name,
+        mediaType: isTv ? 'tv' : 'movie',
+        season: parseInt(season, 10) || 1,
+        episode: parseInt(episode, 10) || 1,
+        serverName: serverLabel,
+        currentUser: state.currentUser
+      });
+      if (logId && state.activePlayback) {
+        state.activePlayback.streamLogId = logId;
+        state.activePlayback.loggedDuration = 0;
+      }
+    } catch (e) {
+      console.warn('Stream logger error notice:', e);
+    }
+  })();
 
   if (startSeconds > 5) {
     const m = Math.floor(startSeconds / 60);
@@ -3959,6 +3998,14 @@ function setupAuthSystem() {
       }
     };
   }
+
+  const ddAnalytics = document.getElementById('dropdown-btn-analytics');
+  if (ddAnalytics) {
+    ddAnalytics.onclick = () => {
+      if (dropdownMenu) dropdownMenu.style.display = 'none';
+      openAnalyticsModal();
+    };
+  }
   if (ddLogout) {
     ddLogout.onclick = async () => {
       if (dropdownMenu) dropdownMenu.style.display = 'none';
@@ -4537,3 +4584,159 @@ function setupCustomHlsModal(item) {
 }
 
 
+
+
+// ==========================================================================
+// Live Stream Proof & Real-Time Analytics System
+// ==========================================================================
+
+export async function openAnalyticsModal() {
+  const modal = document.getElementById('analytics-proof-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const tbody = document.getElementById('analytics-stream-tbody');
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 32px; color: #888;">
+          <div style="font-size: 1.3rem; margin-bottom: 6px;">⚡</div>
+          <div>Fetching real-time verified records from Supabase...</div>
+        </td>
+      </tr>
+    `;
+  }
+
+  await refreshAnalyticsData();
+}
+
+export async function refreshAnalyticsData() {
+  const statStreams = document.getElementById('stat-total-streams');
+  const statViewers = document.getElementById('stat-unique-viewers');
+  const statDuration = document.getElementById('stat-watch-duration');
+  const lastSynced = document.getElementById('analytics-last-synced');
+  const tbody = document.getElementById('analytics-stream-tbody');
+
+  try {
+    const data = await fetchStreamAnalytics(60);
+
+    if (statStreams) statStreams.textContent = (data.totalStreams || 0).toLocaleString();
+    if (statViewers) statViewers.textContent = (data.uniqueViewers || 0).toLocaleString();
+
+    if (statDuration) {
+      const totalSec = data.totalWatchSeconds || 0;
+      const hours = (totalSec / 3600).toFixed(1);
+      const mins = Math.floor(totalSec / 60);
+      statDuration.textContent = totalSec >= 3600 ? `${hours} hrs` : `${mins} mins`;
+    }
+
+    if (lastSynced) {
+      lastSynced.textContent = `Synced at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+    }
+
+    if (tbody) {
+      if (!data.recentLogs || data.recentLogs.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 32px; color: #777;">
+              No streams recorded yet. Click play on any movie or anime to record the first stream!
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = data.recentLogs.map((log, index) => {
+        const timeAgo = formatTimeAgo(new Date(log.created_at));
+        const durationMin = Math.floor((log.watch_duration_seconds || 0) / 60);
+        const durationSec = (log.watch_duration_seconds || 0) % 60;
+        const durStr = durationMin > 0 ? `${durationMin}m ${durationSec}s` : `${durationSec}s`;
+        const isGuest = log.is_guest;
+        const viewerBadge = isGuest
+          ? `<span style="background: rgba(255,255,255,0.08); color: #bbb; padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-family: monospace;">${log.user_identifier || 'Guest'}</span>`
+          : `<span style="background: rgba(229,9,20,0.15); color: #ff6b6b; border: 1px solid rgba(229,9,20,0.3); padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">👤 ${log.user_identifier}</span>`;
+
+        const typeBadge = log.media_type === 'tv'
+          ? `<span style="color: #38bdf8; font-weight: 600;">TV S${log.season || 1}:E${log.episode || 1}</span>`
+          : `<span style="color: #a855f7; font-weight: 600;">Movie</span>`;
+
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); ${index % 2 === 1 ? 'background: rgba(255,255,255,0.02);' : ''}">
+            <td style="padding: 10px 14px; font-weight: 600; color: #fff;">
+              ${log.media_title}
+              <div style="font-size: 0.7rem; color: #888; margin-top: 1px;">${typeBadge}</div>
+            </td>
+            <td style="padding: 10px 14px;">${viewerBadge}</td>
+            <td style="padding: 10px 14px; color: #ccc; font-size: 0.76rem;">${log.server_name || 'Server 1'}</td>
+            <td style="padding: 10px 14px; color: #22c55e; font-family: monospace; font-weight: 600;">${durStr}</td>
+            <td style="padding: 10px 14px; color: #999; font-size: 0.74rem;">${timeAgo}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  } catch (err) {
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 24px; color: #ff6b6b;">
+            Failed to load stream records: ${err.message || 'Unknown error'}
+          </td>
+        </tr>
+      `;
+    }
+  }
+}
+
+function formatTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (isNaN(seconds) || seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return date.toLocaleDateString();
+}
+
+function setupAnalyticsModal() {
+  const modal = document.getElementById('analytics-proof-modal');
+  const closeBtn = document.getElementById('close-analytics-modal-btn');
+  const refreshBtn = document.getElementById('btn-refresh-analytics');
+  const headerBtn = document.getElementById('nav-header-analytics');
+
+  if (headerBtn) {
+    headerBtn.onclick = () => openAnalyticsModal();
+  }
+
+  if (closeBtn && modal) {
+    closeBtn.onclick = () => {
+      modal.style.display = 'none';
+    };
+  }
+
+  if (modal) {
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.style.display = 'none';
+    };
+  }
+
+  if (refreshBtn) {
+    refreshBtn.onclick = async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.style.opacity = '0.6';
+      await refreshAnalyticsData();
+      refreshBtn.disabled = false;
+      refreshBtn.style.opacity = '1';
+      showToast('Live stream records refreshed! 🔄');
+    };
+  }
+
+  // Ctrl + Shift + A or Cmd + Shift + A shortcut
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+      e.preventDefault();
+      openAnalyticsModal();
+    }
+  });
+}
