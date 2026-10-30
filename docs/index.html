@@ -20,7 +20,7 @@
     <!-- Native Multi-Audio Streaming Engine (HLS.js + ArtPlayer) -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
-    <script type="module" crossorigin src="./assets/index-9ChYGhin.js"></script>
+    <script type="module" crossorigin src="./assets/index-CTMTOqNf.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index-Bcv4Eyfd.css">
   </head>
   <body>
@@ -682,30 +682,27 @@
               <!-- Video / Trailer iFrame will be dynamically mounted here with direct native controls -->
             </div>
             
-            <!-- Stream Server Switcher (Dropdown on Mobile & Desktop) -->
+            <!-- Stream Server Switcher (Horizontal Server 1 & Server 2 Side-by-Side) -->
             <div class="player-source-bar">
-              <div class="player-server-select-box">
-                <label for="player-server-select" class="player-server-label">
+              <div class="player-server-select-box" style="display: flex; align-items: center; gap: 8px;">
+                <span class="player-server-label" style="display: flex; align-items: center; gap: 4px; font-weight: 700; color: #aaa; font-size: 0.85rem;">
                   <span class="server-label-icon">⚡</span>
                   <span class="server-label-text">Server:</span>
-                </label>
-                <div class="player-server-select-wrap">
-                  <select id="player-server-select" class="player-server-select" aria-label="Select Streaming Server">
-                    <option value="autoembed" selected>🍥 Server 1: AutoEmbed (Sub/Dub HD & Anime)</option>
-                    <option value="vidlink">⚡ Server 2: VidLink 4K (Ultra HD & Sound)</option>
-                    <option value="axon">🎙️ Server 3: AXON Stream (English Dub & Sub HD)</option>
-                    <option value="vidsrc">👑 Server 4: VidSrc PM (Multi-Mirror HD)</option>
-                    <option value="vidsrc_cc">📺 Server 5: VidSrc CC (Cloud 4K)</option>
-                    <option value="vidsrc_xyz">🌐 Server 6: VidSrc XYZ (Global Mirror)</option>
-                    <option value="vidsrc_net">☁️ Server 7: VidSrc Net (Direct Stream)</option>
-                    <option value="trailer">🎞️ Server 8: Official HD Trailer</option>
-                  </select>
+                </span>
+                <div class="server-pills-wrap" style="display: flex; align-items: center; gap: 6px;">
+                  <button type="button" class="btn-cta btn-watchlist small server-pill active" id="btn-server-autoembed" data-server="autoembed" title="Server 1: AutoEmbed" style="border-radius: 20px; font-weight: 700; padding: 0.45rem 0.95rem; background: #e50914; color: #fff; border: 1px solid #e50914; cursor: pointer; transition: all 0.2s;">
+                    🍥 Server 1: AutoEmbed
+                  </button>
+                  <button type="button" class="btn-cta btn-watchlist small server-pill" id="btn-server-vidlink" data-server="vidlink" title="Server 2: VidLink" style="border-radius: 20px; font-weight: 700; padding: 0.45rem 0.95rem; background: rgba(255,255,255,0.1); color: #ccc; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; transition: all 0.2s;">
+                    ⚡ Server 2: VidLink
+                  </button>
                 </div>
+                <select id="player-server-select" class="player-server-select" style="display: none;" aria-label="Select Streaming Server">
+                  <option value="autoembed" selected>🍥 Server 1: AutoEmbed</option>
+                  <option value="vidlink">⚡ Server 2: VidLink</option>
+                </select>
               </div>
               <div class="source-right">
-                <button type="button" class="btn-cta btn-watchlist small" id="btn-next-server" title="Switch to Next Server">
-                  <span>🔄 Switch Server</span>
-                </button>
                 <button type="button" class="btn-cta btn-watchlist small btn-prev-ep-player" id="player-prev-ep-btn" style="display: none;" title="Play Previous Episode">
                   <span>‹ Prev Ep</span>
                 </button>
@@ -716,24 +713,10 @@
                   <span id="theater-icon">💡</span> <span id="theater-text">Cinema Focus</span>
                 </button>
                 <button class="btn-cta btn-watchlist small" id="player-watchlist-btn">
-                  🔖 Watchlist
+                  🔖 + Add to Watchlist
                 </button>
                 <button class="btn-cta btn-watchlist small popout-btn" id="player-external-btn" title="Open Stream in Full Tab">
                   ↗ Pop-out
-                </button>
-              </div>
-            </div>
-
-            <!-- Audio Language / Dub Switcher Bar -->
-            <div class="player-audio-control-bar" id="player-audio-control-bar">
-              <div class="audio-control-left">
-                <span class="audio-bar-title">🎧 Audio Track / Dub:</span>
-                <div class="audio-lang-pills" id="audio-lang-pills"></div>
-              </div>
-              <div class="audio-control-right">
-                <div class="audio-server-hint" id="audio-server-hint"></div>
-                <button type="button" class="btn-audio-guide" id="btn-open-audio-guide" title="Audio Guide">
-                  <span>ℹ️ Audio Guide</span>
                 </button>
               </div>
             </div>
@@ -1024,73 +1007,6 @@
         </div>
       </div>
 
-
-
-      <!-- Language, Dubbing & Audio Tracks Help Modal -->
-      <div class="modal-backdrop" id="audio-guide-modal" style="display: none;">
-        <div class="auth-card audio-guide-card" style="max-width: 560px; padding: 2rem; max-height: 85vh; overflow-y: auto;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
-            <div style="display: flex; align-items: center; gap: 0.6rem;">
-              <span style="font-size: 1.8rem;">🎧</span>
-              <h2 style="font-size: 1.35rem; margin: 0;">Audio, Dubbing & Language Guide</h2>
-            </div>
-            <button type="button" class="search-clear-btn" id="close-audio-guide-btn" style="display: block; font-size: 1.4rem;">&times;</button>
-          </div>
-
-          <div class="guide-content" style="font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary); display: flex; flex-direction: column; gap: 1.2rem;">
-            <!-- Sound / Mute Solution -->
-            <div class="guide-box" style="background: rgba(229, 9, 20, 0.08); border: 1px solid rgba(229, 9, 20, 0.3); border-radius: 12px; padding: 1rem;">
-              <h4 style="color: #fff; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
-                🔊 Why Does Video Start Muted?
-              </h4>
-              <p style="margin: 0; font-size: 0.86rem;">
-                Modern browsers (Google Chrome, Edge, Safari, and Android) enforce security policies that prevent cross-origin media from playing sound automatically. You have two easy solutions:
-              </p>
-              <ul style="margin: 0.5rem 0 0 1.2rem; font-size: 0.85rem; color: #fff;">
-                <li>Click the <strong>Volume 🔊 icon</strong> in the bottom-right of the player to unmute.</li>
-                <li>Or click <strong>↗ Pop-out (Full Sound)</strong> above to stream in a dedicated window with full volume.</li>
-              </ul>
-            </div>
-
-            <!-- Hindi Dubbing Truth & Guide -->
-            <div class="guide-box" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: 12px; padding: 1rem;">
-              <h4 style="color: #fff; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
-                🇮🇳 Hindi Dubbed & Dual Audio Availability
-              </h4>
-              <p style="margin: 0; font-size: 0.86rem;">
-                Audio availability depends on official studio releases:
-              </p>
-              <ul style="margin: 0.5rem 0 0 1.2rem; font-size: 0.85rem;">
-                <li><strong>Indian Cinema & Hindi Series:</strong> Broadcasted in <strong>100% Native Hindi</strong> audio by default.</li>
-                <li><strong>Major Hollywood Blockbusters:</strong> Franchise films (Marvel, DC, Fast & Furious, Avatar) are officially dubbed in Hindi. Click the <strong>Hindi Dubbed</strong> button above to load dual-audio streams.</li>
-                <li><strong>Western TV Series & Indie Films:</strong> Most international television is not officially dubbed by studios. For these, enable <strong>Hindi Subtitles (CC &gt; Hindi)</strong> on <strong>Player 1 (VidLink)</strong>.</li>
-              </ul>
-            </div>
-
-            <!-- Anime Audio (Sub vs Dub) -->
-            <div class="guide-box" style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 1rem;">
-              <h4 style="color: #fff; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
-                🍥 Anime Audio Tracks (Japanese Sub vs English Dub)
-              </h4>
-              <p style="margin: 0; font-size: 0.86rem;">
-                Anime is produced in Japanese and available internationally in two formats:
-              </p>
-              <ul style="margin: 0.5rem 0 0 1.2rem; font-size: 0.85rem;">
-                <li><strong>SUB:</strong> Original Japanese voice actors with English subtitles (Recommended for authenticity).</li>
-                <li><strong>DUB:</strong> Official English voice cast.</li>
-                <li>Use the <strong>Japanese (Sub)</strong> or <strong>English (Dub)</strong> buttons above to switch immediately!</li>
-              </ul>
-            </div>
-          </div>
-
-          <div style="margin-top: 1.5rem; text-align: center;">
-            <button type="button" class="btn-cta" id="got-it-audio-guide-btn" style="padding: 0.6rem 2rem; border-radius: 30px;">
-              Got It ✓
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Sleek Animated Clear History Confirmation Modal (Replaces browser confirm) -->
       <div class="modal-backdrop" id="confirm-clear-modal" style="display: none;">
         <div class="auth-card" style="max-width: 380px; text-align: center; padding: 2rem;">
@@ -1112,5 +1028,15 @@
       <div class="toast-container" id="toast-container"></div>
     </div>
 
-  </body>
+  
+      
+
+          <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <button type="button" id="cancel-custom-hls-btn" style="background: rgba(255,255,255,0.1); border: none; border-radius: 6px; padding: 9px 18px; color: #fff; font-size: 0.88rem; cursor: pointer;">Cancel</button>
+            <button type="button" id="play-custom-hls-btn" style="background: #e50914; border: none; border-radius: 6px; padding: 9px 20px; color: #fff; font-weight: 700; font-size: 0.88rem; cursor: pointer;">▶ Play in Artplayer</button>
+          </div>
+        </div>
+      </div>
+
+</body>
 </html>

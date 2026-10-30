@@ -1943,11 +1943,13 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
 
   // Watchlist Button
   const watchlistBtn = document.getElementById('player-watchlist-btn');
-  updatePlayerWatchlistBtn(watchlistBtn, isMovieInWatchlist(details.id));
-  watchlistBtn.onclick = () => {
-    toggleWatchlist(details);
+  if (watchlistBtn) {
     updatePlayerWatchlistBtn(watchlistBtn, isMovieInWatchlist(details.id));
-  };
+    watchlistBtn.onclick = () => {
+      toggleWatchlist(details);
+      updatePlayerWatchlistBtn(watchlistBtn, isMovieInWatchlist(details.id));
+    };
+  }
 
   // Fetch Real IMDb Rating from OMDB (using IMDb ID or title+year fallback)
   const imdbId = (details.external_ids && details.external_ids.imdb_id) || details.imdb_id || (initialItem && initialItem.imdb_id);
@@ -2008,34 +2010,41 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
     const hasNextSeason = seasonSelect && seasonSelect.selectedIndex < seasonSelect.options.length - 1;
 
     // Next Episode Button State
-    if (hasNextInSeason || hasNextSeason) {
-      const nextEpObj = hasNextInSeason ? currentSeasonEpisodes[currentIdx + 1] : null;
-      const nextEpNum = nextEpObj ? (nextEpObj.relative_number || nextEpObj.episode_number) : 1;
-      if (playerNextEpBtn) {
-        playerNextEpBtn.style.display = 'inline-flex';
+    if (playerNextEpBtn) {
+      playerNextEpBtn.style.display = 'inline-flex';
+      if (hasNextInSeason || hasNextSeason) {
+        const nextEpObj = hasNextInSeason ? currentSeasonEpisodes[currentIdx + 1] : null;
+        const nextEpNum = nextEpObj ? (nextEpObj.relative_number || nextEpObj.episode_number) : (state.currentEpisode + 1);
+        playerNextEpBtn.disabled = false;
+        playerNextEpBtn.style.opacity = '1';
+        playerNextEpBtn.style.cursor = 'pointer';
         playerNextEpBtn.innerHTML = `<span>Next Ep (E${nextEpNum}) ›</span>`;
+      } else {
+        playerNextEpBtn.disabled = true;
+        playerNextEpBtn.style.opacity = '0.35';
+        playerNextEpBtn.style.cursor = 'not-allowed';
+        playerNextEpBtn.innerHTML = `<span>Next Ep ›</span>`;
       }
-      if (quickNextEpBtn) {
-        quickNextEpBtn.style.display = 'inline-flex';
-        quickNextEpBtn.textContent = `Next Ep (E${nextEpNum}) ›`;
-      }
-    } else {
-      if (playerNextEpBtn) playerNextEpBtn.style.display = 'none';
-      if (quickNextEpBtn) quickNextEpBtn.style.display = 'none';
     }
 
     // Previous Episode Button State
     const hasPrevInSeason = currentIdx > 0;
     const hasPrevSeason = seasonSelect && seasonSelect.selectedIndex > 0;
-    if (hasPrevInSeason || hasPrevSeason) {
-      const prevEpObj = hasPrevInSeason ? currentSeasonEpisodes[currentIdx - 1] : null;
-      const prevEpNum = prevEpObj ? (prevEpObj.relative_number || prevEpObj.episode_number) : 1;
-      if (playerPrevEpBtn) {
-        playerPrevEpBtn.style.display = 'inline-flex';
+    if (playerPrevEpBtn) {
+      playerPrevEpBtn.style.display = 'inline-flex';
+      if (hasPrevInSeason || hasPrevSeason) {
+        const prevEpObj = hasPrevInSeason ? currentSeasonEpisodes[currentIdx - 1] : null;
+        const prevEpNum = prevEpObj ? (prevEpObj.relative_number || prevEpObj.episode_number) : Math.max(1, state.currentEpisode - 1);
+        playerPrevEpBtn.disabled = false;
+        playerPrevEpBtn.style.opacity = '1';
+        playerPrevEpBtn.style.cursor = 'pointer';
         playerPrevEpBtn.innerHTML = `<span>‹ Prev Ep (E${prevEpNum})</span>`;
+      } else {
+        playerPrevEpBtn.disabled = true;
+        playerPrevEpBtn.style.opacity = '0.35';
+        playerPrevEpBtn.style.cursor = 'not-allowed';
+        playerPrevEpBtn.innerHTML = `<span>‹ Prev Ep</span>`;
       }
-    } else {
-      if (playerPrevEpBtn) playerPrevEpBtn.style.display = 'none';
     }
   }
 
@@ -2535,61 +2544,42 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   // Set default active server: AutoEmbed for anime (guaranteed episodes), VidLink for others
   state.activeSourceType = isAnime ? 'autoembed' : 'vidlink';
 
-  // Stream Server Switcher (Modern Dropdown for PC and Mobile)
+  // Stream Server Switcher (Horizontal Server 1 & Server 2)
   const serverSelect = document.getElementById('player-server-select');
-  if (serverSelect) {
-    if (isAnime) {
-      serverSelect.innerHTML = `
-        <option value="autoembed">🍥 Server 1: AutoEmbed (Sub/Dub HD & Anime)</option>
-        <option value="vidlink">⚡ Server 2: VidLink 4K (Ultra HD & Sound)</option>
-        <option value="axon">🎙️ Server 3: AXON Stream (English Dub & Sub HD)</option>
-        <option value="vidsrc">👑 Server 4: VidSrc PM (Multi-Mirror HD)</option>
-        <option value="vidsrc_cc">📺 Server 5: VidSrc CC (Cloud 4K)</option>
-        <option value="vidsrc_xyz">🌐 Server 6: VidSrc XYZ (Global Mirror)</option>
-        <option value="vidsrc_net">☁️ Server 7: VidSrc Net (Direct Stream)</option>
-        <option value="trailer">🎞️ Server 8: Official HD Trailer</option>
-      `;
-    } else {
-      serverSelect.innerHTML = `
-        <option value="vidlink">⚡ Server 1: VidLink 4K (Ultra HD & Sound)</option>
-        <option value="autoembed">🍥 Server 2: AutoEmbed (Sub/Dub HD)</option>
-        <option value="axon">🎙️ Server 3: AXON Stream (English Dub & Sub HD)</option>
-        <option value="vidsrc">👑 Server 4: VidSrc PM (Multi-Mirror HD)</option>
-        <option value="vidsrc_cc">📺 Server 5: VidSrc CC (Cloud 4K)</option>
-        <option value="vidsrc_xyz">🌐 Server 6: VidSrc XYZ (Global Mirror)</option>
-        <option value="vidsrc_net">☁️ Server 7: VidSrc Net (Direct Stream)</option>
-        <option value="trailer">🎞️ Server 8: Official HD Trailer</option>
-      `;
+  const btnServer1 = document.getElementById('btn-server-autoembed');
+  const btnServer2 = document.getElementById('btn-server-vidlink');
+
+  function updateServerPillsUI(activeType) {
+    if (btnServer1) {
+      const isS1 = activeType === 'autoembed';
+      btnServer1.style.background = isS1 ? '#e50914' : 'rgba(255,255,255,0.1)';
+      btnServer1.style.borderColor = isS1 ? '#e50914' : 'rgba(255,255,255,0.2)';
+      btnServer1.style.color = isS1 ? '#fff' : '#ccc';
+      btnServer1.classList.toggle('active', isS1);
     }
-    serverSelect.value = state.activeSourceType;
-    serverSelect.onchange = (e) => {
-      const chosen = e.target.value;
-      state.activeSourceType = chosen;
-      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
-      mountVideoPlayer(details, chosen, state.currentSeason || 1, state.currentEpisode || 1, playSec);
-      const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : chosen;
-      showToast(`Connected to ${label}`);
-    };
+    if (btnServer2) {
+      const isS2 = activeType === 'vidlink';
+      btnServer2.style.background = isS2 ? '#e50914' : 'rgba(255,255,255,0.1)';
+      btnServer2.style.borderColor = isS2 ? '#e50914' : 'rgba(255,255,255,0.2)';
+      btnServer2.style.color = isS2 ? '#fff' : '#ccc';
+      btnServer2.classList.toggle('active', isS2);
+    }
+    if (serverSelect) serverSelect.value = activeType;
   }
 
-  // 1-Click "🔄 Switch Server" Button
-  const nextServerBtn = document.getElementById('btn-next-server');
-  if (nextServerBtn) {
-    nextServerBtn.onclick = () => {
-      const serverOrder = isAnime
-        ? ['autoembed', 'vidlink', 'axon', 'vidsrc', 'vidsrc_cc', 'vidsrc_xyz', 'vidsrc_net']
-        : ['vidlink', 'autoembed', 'axon', 'vidsrc', 'vidsrc_cc', 'vidsrc_xyz', 'vidsrc_net'];
-      const currentIndex = serverOrder.indexOf(state.activeSourceType);
-      const nextIndex = (currentIndex + 1) % serverOrder.length;
-      const nextServer = serverOrder[nextIndex];
-      state.activeSourceType = nextServer;
-      if (serverSelect) serverSelect.value = nextServer;
-      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
-      mountVideoPlayer(details, nextServer, state.currentSeason || 1, state.currentEpisode || 1, playSec);
-      const label = serverSelect.options[serverSelect.selectedIndex] ? serverSelect.options[serverSelect.selectedIndex].text : nextServer;
-      showToast(`Switched to ${label}`);
-    };
+  function switchServer(targetServer) {
+    if (state.activeSourceType === targetServer) return;
+    state.activeSourceType = targetServer;
+    updateServerPillsUI(targetServer);
+    const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+    mountVideoPlayer(details, targetServer, state.currentSeason || 1, state.currentEpisode || 1, playSec);
+    showToast(`Switched to ${targetServer === 'autoembed' ? 'Server 1: AutoEmbed' : 'Server 2: VidLink'}`);
   }
+
+  if (btnServer1) btnServer1.onclick = () => switchServer('autoembed');
+  if (btnServer2) btnServer2.onclick = () => switchServer('vidlink');
+
+  updateServerPillsUI(state.activeSourceType || 'autoembed');
 
   // Look for saved progress if resumeSeconds wasn't explicitly passed
   const savedItem = (state.continueWatching || []).find(m => m.id === details.id);
@@ -2602,9 +2592,8 @@ async function openPlayerView(id, isTv = false, targetSeason = 1, targetEpisode 
   // Mount Video Player (mounts video & in-player overlay controls)
   mountVideoPlayer(details, state.activeSourceType, state.currentSeason || 1, state.currentEpisode || 1, startSeconds);
 
+  // Initialize Custom HLS Modal & Controls
   // Initialize Audio Language / Dub Switcher Bar
-  setupAudioLanguageSelector(details, isTv);
-
   // Record into Watch History & Continue Watching
   recordMovieToHistory(details);
   recordContinueWatching(details, state.currentSeason || 1, state.currentEpisode || 1, startSeconds);
@@ -2949,16 +2938,9 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
   const streamSeason = parseInt(season, 10) || 1;
   const streamEpisode = parseInt(episode, 10) || 1;
   const animeEp = absoluteEpisode ? parseInt(absoluteEpisode, 10) : streamEpisode;
-
   const lang = state.activeAudioLang || 'en';
-  const subOrDub = lang === 'en' ? 'dub' : 'sub';
 
-  // Real content stream URL - guaranteed zero sample video fallback
-  const streamUrl = isAnime
-    ? `https://player.autoembed.co/embed/anime/${item.id}/${animeEp}/${subOrDub}`
-    : (isTv
-      ? `https://player.autoembed.co/embed/tv/${item.id}/${streamSeason}-${streamEpisode}/`
-      : `https://player.autoembed.co/embed/movie/${item.id}/`);
+  const streamUrl = state.customHlsUrl || '';
 
   return {
     url: streamUrl,
@@ -2973,7 +2955,8 @@ function resolveAxonNativeStream(item, isTv, season = 1, episode = 1, startSecon
     episode: streamEpisode,
     absoluteEpisode: animeEp,
     startSeconds: startSeconds || 0,
-    audioLang: lang
+    audioLang: lang,
+    hasCustomStream: Boolean(streamUrl)
   };
 }
 
@@ -3038,22 +3021,61 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   if (type === 'axon') {
     // ---------------------------------------------------------------
-    // 🎙️ Server 3: AXON Stream (English Dub & Sub HD)
+    // 🚀 Server 0: Native HLS Player (Artplayer • 0 Ads)
     // ---------------------------------------------------------------
-    badgeLabel = `🎙️ Server 3 (AXON Stream) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD Stream'}${langTag}`;
-    if (badge) badge.textContent = badgeLabel;
+    const streamConfig = resolveAxonNativeStream(item, isTv, playSeason, playEpisode, startSeconds, effectiveAbsoluteEp);
 
-    if (cinemaScreen) cinemaScreen.innerHTML = '';
-    try {
-      const streamConfig = resolveAxonNativeStream(item, isTv, playSeason, playEpisode, startSeconds, effectiveAbsoluteEp);
-      const art = initNativePlayer(cinemaScreen, streamConfig);
-      if (art) {
-        state.axonPlayerInstance = art;
+    if (streamConfig.hasCustomStream) {
+      badgeLabel = `⚡ Custom HLS Stream (Artplayer) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD Stream'}${langTag}`;
+      if (badge) badge.textContent = badgeLabel;
+      if (cinemaScreen) cinemaScreen.innerHTML = '';
+      try {
+        const art = initNativePlayer(cinemaScreen, streamConfig);
+        if (art) state.axonPlayerInstance = art;
+        showToast('▶ Playing in Artplayer (0 Ads)');
+      } catch (err) {
+        console.error('[AXON Player]: Initialization error:', err);
       }
-      showToast(`AXON Player: Stream Active${langTag} (0 Ads)`);
-    } catch (err) {
-      console.error('[AXON Player]: Initialization error:', err);
-      showToast(`AXON Player error: ${err.message || 'Failed to initialize'}`);
+    } else {
+      badgeLabel = '🚀 Native HLS Engine (Artplayer • 0 Ads)';
+      if (badge) badge.textContent = badgeLabel;
+      if (cinemaScreen) {
+        cinemaScreen.innerHTML = `
+          <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at center, #1a1a1a 0%, #060606 100%); color: #fff; padding: 24px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="font-size: 2.6rem; margin-bottom: 12px;">⚡</div>
+            <h3 style="font-size: 1.35rem; font-weight: 700; margin: 0 0 8px;">Native Artplayer Mode</h3>
+            <p style="color: #aaa; font-size: 0.9rem; max-width: 520px; margin: 0 0 20px; line-height: 1.5;">
+              To watch <b>${item.title || item.name}</b> in 0-ad Artplayer, paste your <code>.m3u8</code> stream link, or switch back to Server 1 (AutoEmbed) to watch the episode now.
+            </p>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+              <button id="btn-screen-open-hls" style="background: #e50914; color: #fff; border: none; border-radius: 6px; padding: 10px 22px; font-weight: 700; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 15px rgba(229,9,20,0.4);">
+                ⚡ Enter .m3u8 Stream Link
+              </button>
+              <button id="btn-screen-use-autoembed" style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 10px 20px; font-weight: 600; font-size: 0.9rem; cursor: pointer;">
+                🍥 Switch to Server 1: AutoEmbed (Watch Now)
+              </button>
+            </div>
+          </div>
+        `;
+
+        const openBtn = document.getElementById('btn-screen-open-hls');
+        if (openBtn) {
+          openBtn.onclick = () => {
+            const modal = document.getElementById('custom-hls-modal');
+            if (modal) modal.style.display = 'flex';
+          };
+        }
+
+        const autoembedBtn = document.getElementById('btn-screen-use-autoembed');
+        if (autoembedBtn) {
+          autoembedBtn.onclick = () => {
+            state.activeSourceType = 'autoembed';
+            const serverSelect = document.getElementById('player-server-select');
+            if (serverSelect) serverSelect.value = 'autoembed';
+            mountVideoPlayer(item, 'autoembed', playSeason, playEpisode, startSeconds);
+          };
+        }
+      }
     }
 
     const serverSelect = document.getElementById('player-server-select');
@@ -3061,7 +3083,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
       serverSelect.value = 'axon';
     }
 
-    state.currentStreamUrl = streamConfig.streamUrl || streamConfig.url;
+    state.currentStreamUrl = streamConfig ? (streamConfig.streamUrl || streamConfig.url) : '';
     state.activePlayback = {
       id: item.id,
       title: item.title || item.name,
@@ -3081,8 +3103,7 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
     // ---------------------------------------------------------------
     // ⚡ Server: VidLink 4K (Ultra HD & Full Audio)
     // ---------------------------------------------------------------
-    const sNum = isAnime ? 2 : 1;
-    badgeLabel = `⚡ Server ${sNum} (VidLink 4K) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Ultra HD & Sound'}${langTag}`;
+    badgeLabel = `⚡ Server 2: VidLink • ${isTv ? `S${playSeason} : E${playEpisode}` : 'Ultra HD'}`;
     const paramsList = ['primaryColor=e50914'];
     if (startSeconds && startSeconds > 5) {
       paramsList.push(`startAt=${Math.floor(startSeconds)}`);
@@ -3104,23 +3125,12 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
 
   } else if (type === 'autoembed') {
     // ---------------------------------------------------------------
-    // 🍥 Server: AutoEmbed (Sub/Dub HD & Dedicated Anime Player)
+    // 🍥 Server 1: AutoEmbed (HD Stream)
     // ---------------------------------------------------------------
-    const sNum = isAnime ? 1 : 2;
-    const subOrDub = lang === 'en' ? 'dub' : 'sub';
-    badgeLabel = `🍥 Server ${sNum} (AutoEmbed ${lang === 'en' ? 'English Dub' : 'Japanese Sub'}) • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD'}${langTag}`;
-
-    if (isAnime) {
-      streamUrl = `https://player.autoembed.co/embed/anime/${item.id}/${effectiveAbsoluteEp}/${subOrDub}`;
-    } else {
-      let autoEmbedQuery = '';
-      if (lang === 'hi') autoEmbedQuery = '?audio=hi';
-      else if (lang === 'en') autoEmbedQuery = '?audio=en';
-      else if (lang === 'es') autoEmbedQuery = '?audio=es';
-      streamUrl = isTv
-        ? `https://player.autoembed.co/embed/tv/${item.id}/${playSeason}-${playEpisode}/${autoEmbedQuery}`
-        : `https://player.autoembed.co/embed/movie/${item.id}/${autoEmbedQuery}`;
-    }
+    badgeLabel = `🍥 Server 1: AutoEmbed • ${isTv ? `S${playSeason} : E${playEpisode}` : 'HD Stream'}`;
+    streamUrl = isTv
+      ? `https://player.autoembed.co/embed/tv/${item.id}/${playSeason}-${playEpisode}/`
+      : `https://player.autoembed.co/embed/movie/${item.id}/`;
 
   } else if (type === 'vidsrc') {
     // ---------------------------------------------------------------
@@ -3212,6 +3222,17 @@ async function mountVideoPlayer(item, type, season = 1, episode = 1, startSecond
   if (serverSelect && serverSelect.value !== type) {
     serverSelect.value = type;
   }
+  const s1Btn = document.getElementById('btn-server-autoembed');
+  const s2Btn = document.getElementById('btn-server-vidlink');
+  if (s1Btn && s2Btn) {
+    const is1 = type === 'autoembed';
+    s1Btn.style.background = is1 ? '#e50914' : 'rgba(255,255,255,0.1)';
+    s1Btn.style.borderColor = is1 ? '#e50914' : 'rgba(255,255,255,0.2)';
+    s1Btn.style.color = is1 ? '#fff' : '#ccc';
+    s2Btn.style.background = !is1 ? '#e50914' : 'rgba(255,255,255,0.1)';
+    s2Btn.style.borderColor = !is1 ? '#e50914' : 'rgba(255,255,255,0.2)';
+    s2Btn.style.color = !is1 ? '#fff' : '#ccc';
+  }
 
   // Pop-out Player Button listener
   const popoutBtn = document.getElementById('player-external-btn');
@@ -3294,6 +3315,7 @@ function stopVideoPlayback() {
 }
 
 function updatePlayerWatchlistBtn(btn, inList) {
+  if (!btn) return;
   if (inList) {
     btn.textContent = '✓ In Watchlist';
     btn.classList.add('in-watchlist');
@@ -4445,5 +4467,73 @@ window.clearAxonDB = function () {
 };
 
 
+
+
+
+// ==========================================================================
+// Custom HLS Stream Modal & Artplayer Handler
+// ==========================================================================
+function setupCustomHlsModal(item) {
+  const openBtn = document.getElementById('btn-custom-hls');
+  const modal = document.getElementById('custom-hls-modal');
+  const closeBtn = document.getElementById('close-custom-hls-btn');
+  const cancelBtn = document.getElementById('cancel-custom-hls-btn');
+  const playBtn = document.getElementById('play-custom-hls-btn');
+  const urlInput = document.getElementById('custom-hls-url-input');
+
+  if (!openBtn || !modal) return;
+
+  function openModal() {
+    modal.style.display = 'flex';
+    if (urlInput) {
+      urlInput.value = state.customHlsUrl || '';
+      urlInput.focus();
+    }
+  }
+
+  function closeModal() {
+    modal.style.display = 'none';
+  }
+
+  openBtn.onclick = openModal;
+  if (closeBtn) closeBtn.onclick = closeModal;
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+
+  modal.onclick = (e) => {
+    if (e.target === modal) closeModal();
+  };
+
+  // Demo test buttons
+  const demoButtons = modal.querySelectorAll('.btn-test-hls');
+  demoButtons.forEach(btn => {
+    btn.onclick = () => {
+      const u = btn.getAttribute('data-url');
+      if (urlInput && u) {
+        urlInput.value = u;
+      }
+    };
+  });
+
+  if (playBtn) {
+    playBtn.onclick = () => {
+      const streamVal = urlInput ? urlInput.value.trim() : '';
+      if (!streamVal) {
+        showToast('Please enter an HLS (.m3u8) or video URL');
+        return;
+      }
+
+      state.customHlsUrl = streamVal;
+      state.activeSourceType = 'axon';
+      closeModal();
+
+      const serverSelect = document.getElementById('player-server-select');
+      if (serverSelect) serverSelect.value = 'axon';
+
+      const playSec = state.activePlayback ? (state.activePlayback.currentTime || 0) : 0;
+      mountVideoPlayer(item, 'axon', state.currentSeason || 1, state.currentEpisode || 1, playSec);
+      showToast('Loaded in Native Artplayer!');
+    };
+  }
+}
 
 
